@@ -1,0 +1,14 @@
+<network>
+  <name>corp_net</name>
+
+  <!-- No internet access -->
+  <forward mode='none'/>
+
+  <bridge name='virbr-corp' stp='on' delay='0'/>
+
+  <ip address='10.10.10.1' netmask='255.255.255.0'>
+    <dhcp>
+      <range start='10.10.10.100' end='10.10.10.200'/>
+    </dhcp>
+  </ip>
+</network>
