@@ -1,2 +1,4 @@
 /Static_Honeypots
 /simulations/maya-crdt/target
+.gitignore
+.git/
