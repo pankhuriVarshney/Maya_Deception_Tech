@@ -1,0 +1,14 @@
+<network>
+  <name>maya_net</name>
+
+  <!-- Completely isolated deception fabric -->
+  <forward mode='none'/>
+
+  <bridge name='virbr-maya' stp='on' delay='0'/>
+
+  <ip address='10.20.20.1' netmask='255.255.255.0'>
+    <dhcp>
+      <range start='10.20.20.100' end='10.20.20.200'/>
+    </dhcp>
+  </ip>
+</network>
