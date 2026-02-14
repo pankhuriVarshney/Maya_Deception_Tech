@@ -5,6 +5,51 @@ cargo new maya-crdt
 cd maya-crdt
 ```
 
+# Theory
+
+1. G-Set (Grow-Only Set)
+**Purpose:**
+Visited hosts, historical actions.
+
+**Merge rule:**
+Union.
+
+2. WOR-Set (Add-Wins Observed-Remove Set)
+**Purpose:**
+Stolen credentials.
+
+**You want:**
+- Credentials can be “replaced”
+- But concurrent adds should win over removes
+
+**AWOR-set needs:**
+- Unique tag per add
+- Tombstones for removes
+
+**Merge rule:**
+- Union adds
+- Union removes
+- Effective set = adds - removes
+
+
+3. LWW-Register
+**Purpose:**
+- Current attacker location.
+- Only one value matters.
+
+**Merge rule:**
+- Take value with higher timestamp.
+- Tie-break using node ID.
+
+
+4. LWW-Map
+**Purpose:**
+- Active sessions per host.
+
+**Merge rule:**
+- Per-key LWW resolution.
+
+
 ## fake-jump-01 (SSH-based sync)
 *Behavior we emulate:*
 Jump hosts routinely SSH into internal web servers
@@ -152,6 +197,8 @@ DPkg::Post-Invoke {
 
 # Making binary:
 
+
+### Dynamic
 ```bash
 cargo build --release
 
@@ -166,4 +213,45 @@ sudo ls -la /var/lib | grep syscache
 sudo cat /var/lib/.syscache
 ```
 
+### Static
 
+```bash
+sudo apt install musl-tools
+
+rustup target add x86_64-unknown-linux-musl
+
+cargo clean
+
+cargo build --release --target x86_64-unknown-linux-musl
+
+# Verify
+file target/x86_64-unknown-linux-musl/release/maya-crdt
+```
+
+
+
+# Mergeing
+
+## Manual
+```bash
+scp admin@10.20.20.20:/var/lib/.syscache /tmp/redis.state
+scp /tmp/redis.state admin@10.20.20.10:/tmp/redis.state
+
+
+ssh admin@10.20.20.10
+sudo /usr/local/bin/syslogd-helper merge /tmp/redis.state
+
+# or inside vm:
+sudo cp /var/lib/.syscache /tmp/redis.state
+sudo chmod 644 /tmp/redis.state
+# outside
+scp admin@10.20.20.20:/tmp/redis.state /tmp/redis.state
+
+
+# or
+ssh admin@10.20.20.20 "sudo cat /var/lib/.syscache" > /tmp/redis.state
+
+
+
+sudo cat /var/lib/.syscache
+```
