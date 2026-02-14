@@ -81,6 +81,8 @@ Vagrant.configure("2") do |config|
      service sshd start
 
      adduser -D admin
-     echo "admin:Winter2023!" | chpasswd
+     echo "admin:fakejump01!" | chpasswd
+     addgroup admin wheel
+     echo "%wheel ALL=(ALL) ALL" >> /etc/sudoers
   SHELL
 end
