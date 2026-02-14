@@ -78,6 +78,10 @@ To reload the VM after making changes in the Vagrantfile:
 vagrant reload
 ```
 
+```bash
+vagrant provision
+```
+
 # Networking
 
 
