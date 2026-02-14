@@ -259,12 +259,14 @@ impl MayaState {
 
     pub fn observe_visit(&mut self, attacker_id: &str, decoy: &str) {
         self.ensure_attacker(attacker_id);
+        self.clock.tick();   // ← ADD THIS
         self.attackers
             .get_mut(attacker_id)
             .unwrap()
             .visited_decoys
             .add(decoy.to_string());
     }
+
 
     pub fn record_action(&mut self, attacker_id: &str, decoy: &str, action: &str) {
         self.ensure_attacker(attacker_id);
@@ -317,11 +319,19 @@ impl MayaState {
     }
 
     pub fn save(&self, path: &str) {
+        if let Some(parent) = std::path::Path::new(path).parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+
         if let Ok(json) = serde_json::to_string(self) {
-            let _ = fs::File::create(path)
-                .and_then(|mut f| f.write_all(json.as_bytes()));
+            if let Err(e) = fs::File::create(path)
+                .and_then(|mut f| f.write_all(json.as_bytes()))
+            {
+                eprintln!("Failed to save state: {}", e);
+            }
         }
     }
+
 
     pub fn load(path: &str, node_id: &str) -> Self {
         if let Ok(mut file) = fs::File::open(path) {
@@ -334,6 +344,15 @@ impl MayaState {
         }
         MayaState::new(node_id)
     }
+
+    pub fn hash(&self) -> String {
+        use sha2::{Sha256, Digest};
+        let json = serde_json::to_string(self).unwrap();
+        let mut hasher = Sha256::new();
+        hasher.update(json);
+        format!("{:x}", hasher.finalize())
+    }
+
 }
 
 impl MayaState {
