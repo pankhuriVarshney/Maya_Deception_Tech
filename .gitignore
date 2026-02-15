@@ -2,3 +2,6 @@
 /simulations/maya-crdt/target
 .gitignore
 .git/
+node_modules/
+.next/
+.env
