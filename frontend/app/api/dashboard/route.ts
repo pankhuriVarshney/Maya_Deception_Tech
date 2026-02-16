@@ -1,21 +1,60 @@
-import { NextResponse } from "next/server"
-import { getMockDashboardData } from "@/lib/dashboard/mock"
-import type { DashboardResponse } from "@/lib/dashboard/types"
+import { NextRequest, NextResponse } from 'next/server';
 
-export const runtime = "nodejs"
-
-export function GET() {
-  const now = new Date()
-  const body: DashboardResponse = {
-    data: getMockDashboardData(now),
-    generatedAt: now.toISOString(),
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ path: string[] }> }
+) {
+  const { path } = await params;
+  const pathString = path.join('/');
+  const searchParams = request.nextUrl.searchParams.toString();
+  const query = searchParams ? `?${searchParams}` : '';
+  
+  const backendUrl = `http://localhost:3001/api/${pathString}${query}`;
+  
+  try {
+    const response = await fetch(backendUrl, {
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      cache: 'no-store',
+    });
+    
+    const data = await response.json();
+    return NextResponse.json(data);
+  } catch (error) {
+    return NextResponse.json(
+      { success: false, error: 'Backend unavailable' },
+      { status: 503 }
+    );
   }
-
-  return NextResponse.json(body, {
-    headers: {
-      // Keep it dynamic for polling.
-      "Cache-Control": "no-store",
-    },
-  })
 }
 
+export async function POST(
+  request: NextRequest,
+  { params }: { params: Promise<{ path: string[] }> }
+) {
+  const { path } = await params;
+  const pathString = path.join('/');
+  const body = await request.json();
+  
+  const backendUrl = `http://localhost:3001/api/${pathString}`;
+  
+  try {
+    const response = await fetch(backendUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+      cache: 'no-store',
+    });
+    
+    const data = await response.json();
+    return NextResponse.json(data);
+  } catch (error) {
+    return NextResponse.json(
+      { success: false, error: 'Backend unavailable' },
+      { status: 503 }
+    );
+  }
+}

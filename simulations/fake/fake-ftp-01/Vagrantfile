@@ -35,7 +35,7 @@ Vagrant.configure("2") do |config|
   # Create a private network, which allows host-only access to the machine
   # using a specific IP.
   config.vm.network "private_network",
-    libvirt__network_name: "maya_net",
+    libvirt__network_name: "maya_internal",
     ip: "10.20.20.40"
 
   # Create a public network, which generally matched to bridged network.
@@ -92,4 +92,179 @@ Vagrant.configure("2") do |config|
 
 	  systemctl restart vsftpd
 	SHELL
+
+  # Docker macvlan network configuration (appended by orchestrator)
+  config.vm.provision "shell", inline: <<-SHELL
+    # Install Docker if not present
+    if ! command -v docker &> /dev/null; then
+      apt-get update
+      apt-get install -y apt-transport-https ca-certificates curl gnupg lsb-release
+      curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+      echo "deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/debian $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+      apt-get update
+      apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+      usermod -aG docker vagrant
+    fi
+    
+    # Enable promiscuous mode on eth1 (private network interface)
+    ip link set eth1 promisc on
+    
+    # Get IP and network info from eth1
+    IP_ADDR=$(ip -4 addr show eth1 | grep -oP '(?<=inet\s)\d+(\.\d+){3}')
+    NETWORK=$(ip -4 addr show eth1 | grep -oP '(?<=inet\s)\d+(\.\d+){3}/\d+')
+    
+    # Create macvlan network for containers to appear as physical hosts
+    docker network rm honeypot-macvlan 2>/dev/null || true
+    docker network create -d macvlan \
+      --subnet="${NETWORK}" \
+      --gateway="${IP_ADDR%/*}" \
+      -o parent=eth1 \
+      honeypot-macvlan
+    
+    # Create internal bridge network for container-to-container communication
+    docker network rm honeypot-internal 2>/dev/null || true
+    docker network create --driver bridge honeypot-internal
+    
+    echo "Docker networking configured for macvlan"
+  SHELL
+
+  # Docker macvlan network configuration (appended by orchestrator)
+  config.vm.provision "shell", inline: <<-SHELL
+    # Install Docker if not present
+    if ! command -v docker &> /dev/null; then
+      apt-get update
+      apt-get install -y apt-transport-https ca-certificates curl gnupg lsb-release
+      curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+      echo "deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/debian $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+      apt-get update
+      apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+      usermod -aG docker vagrant
+    fi
+    
+    # Enable promiscuous mode on eth1 (private network interface)
+    ip link set eth1 promisc on
+    
+    # Get IP and network info from eth1
+    IP_ADDR=$(ip -4 addr show eth1 | grep -oP '(?<=inet\s)\d+(\.\d+){3}')
+    NETWORK=$(ip -4 addr show eth1 | grep -oP '(?<=inet\s)\d+(\.\d+){3}/\d+')
+    
+    # Create macvlan network for containers to appear as physical hosts
+    docker network rm honeypot-macvlan 2>/dev/null || true
+    docker network create -d macvlan \
+      --subnet="${NETWORK}" \
+      --gateway="${IP_ADDR%/*}" \
+      -o parent=eth1 \
+      honeypot-macvlan
+    
+    # Create internal bridge network for container-to-container communication
+    docker network rm honeypot-internal 2>/dev/null || true
+    docker network create --driver bridge honeypot-internal
+    
+    echo "Docker networking configured for macvlan"
+  SHELL
+
+  # Docker macvlan network configuration (appended by orchestrator)
+  config.vm.provision "shell", inline: <<-SHELL
+    # Install Docker if not present
+    if ! command -v docker &> /dev/null; then
+      apt-get update
+      apt-get install -y apt-transport-https ca-certificates curl gnupg lsb-release
+      curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+      echo "deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/debian $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+      apt-get update
+      apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+      usermod -aG docker vagrant
+    fi
+    
+    # Enable promiscuous mode on eth1 (private network interface)
+    ip link set eth1 promisc on
+    
+    # Get IP and network info from eth1
+    IP_ADDR=$(ip -4 addr show eth1 | grep -oP '(?<=inet\s)\d+(\.\d+){3}')
+    NETWORK=$(ip -4 addr show eth1 | grep -oP '(?<=inet\s)\d+(\.\d+){3}/\d+')
+    
+    # Create macvlan network for containers to appear as physical hosts
+    docker network rm honeypot-macvlan 2>/dev/null || true
+    docker network create -d macvlan \
+      --subnet="${NETWORK}" \
+      --gateway="${IP_ADDR%/*}" \
+      -o parent=eth1 \
+      honeypot-macvlan
+    
+    # Create internal bridge network for container-to-container communication
+    docker network rm honeypot-internal 2>/dev/null || true
+    docker network create --driver bridge honeypot-internal
+    
+    echo "Docker networking configured for macvlan"
+  SHELL
+
+  # Docker macvlan network configuration (appended by orchestrator)
+  config.vm.provision "shell", inline: <<-SHELL
+    # Install Docker if not present
+    if ! command -v docker &> /dev/null; then
+      apt-get update
+      apt-get install -y apt-transport-https ca-certificates curl gnupg lsb-release
+      curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+      echo "deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/debian $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+      apt-get update
+      apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+      usermod -aG docker vagrant
+    fi
+    
+    # Enable promiscuous mode on eth1 (private network interface)
+    ip link set eth1 promisc on
+    
+    # Get IP and network info from eth1
+    IP_ADDR=$(ip -4 addr show eth1 | grep -oP '(?<=inet\s)\d+(\.\d+){3}')
+    NETWORK=$(ip -4 addr show eth1 | grep -oP '(?<=inet\s)\d+(\.\d+){3}/\d+')
+    
+    # Create macvlan network for containers to appear as physical hosts
+    docker network rm honeypot-macvlan 2>/dev/null || true
+    docker network create -d macvlan \
+      --subnet="${NETWORK}" \
+      --gateway="${IP_ADDR%/*}" \
+      -o parent=eth1 \
+      honeypot-macvlan
+    
+    # Create internal bridge network for container-to-container communication
+    docker network rm honeypot-internal 2>/dev/null || true
+    docker network create --driver bridge honeypot-internal
+    
+    echo "Docker networking configured for macvlan"
+  SHELL
+
+  # Docker macvlan network configuration (appended by orchestrator)
+  config.vm.provision "shell", inline: <<-SHELL
+    # Install Docker if not present
+    if ! command -v docker &> /dev/null; then
+      apt-get update
+      apt-get install -y apt-transport-https ca-certificates curl gnupg lsb-release
+      curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+      echo "deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/debian $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+      apt-get update
+      apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+      usermod -aG docker vagrant
+    fi
+    
+    # Enable promiscuous mode on eth1 (private network interface)
+    ip link set eth1 promisc on
+    
+    # Get IP and network info from eth1
+    IP_ADDR=$(ip -4 addr show eth1 | grep -oP '(?<=inet\s)\d+(\.\d+){3}')
+    NETWORK=$(ip -4 addr show eth1 | grep -oP '(?<=inet\s)\d+(\.\d+){3}/\d+')
+    
+    # Create macvlan network for containers to appear as physical hosts
+    docker network rm honeypot-macvlan 2>/dev/null || true
+    docker network create -d macvlan \
+      --subnet="${NETWORK}" \
+      --gateway="${IP_ADDR%/*}" \
+      -o parent=eth1 \
+      honeypot-macvlan
+    
+    # Create internal bridge network for container-to-container communication
+    docker network rm honeypot-internal 2>/dev/null || true
+    docker network create --driver bridge honeypot-internal
+    
+    echo "Docker networking configured for macvlan"
+  SHELL
 end

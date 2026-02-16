@@ -32,8 +32,8 @@ export function useAttackerDetail(
     const abortController = new AbortController()
     abortRef.current = abortController
 
-    const url = `/api/attacker/${encodeURIComponent(id)}`
-
+    const url = `/api/dashboard/attacker/${encodeURIComponent(id)}`
+    
     try {
       const res = await fetch(url, {
         method: "GET",
@@ -43,8 +43,11 @@ export function useAttackerDetail(
       })
 
       if (!res.ok) throw new Error(`Request failed: ${res.status}`)
-      const json = (await res.json()) as AttackerDetails
-      setData(json)
+      
+      // FIX: Extract data from response wrapper
+      const json = await res.json() as { success: boolean; data: AttackerDetails }
+      setData(json.data) // <-- Extract from json.data
+      
       setError(null)
     } catch (e) {
       if ((e as Error).name === "AbortError") return
@@ -72,7 +75,6 @@ export function useAttackerDetail(
       return
     }
 
-    // Only reset state on a real id change. On initial mount, we keep any server-provided initialData.
     if (prevId !== null && prevId !== id) {
       setLoading(true)
       setData(null)

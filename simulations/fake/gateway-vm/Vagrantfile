@@ -1,0 +1,75 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+Vagrant.configure("2") do |config|
+  config.vm.box = "generic/debian12"
+  config.vm.box_version = "4.3.12"
+  config.vm.hostname = "gateway-vm"
+  
+  # Interface 1: Connected to real internal network (192.168.10.0/24)
+  config.vm.network "public_network",
+    dev: "wlan0",
+    ip: "192.168.10.5",
+    netmask: "255.255.255.0"
+  
+  # Interface 2: Bridge to segment VMs (internal bridge)
+  config.vm.network "private_network",
+    libvirt__network_name: "maya_internal",
+    ip: "10.20.20.1",
+    netmask: "255.255.255.0"
+  
+  config.vm.provider :libvirt do |lv|
+    lv.memory = 2048
+    lv.cpus = 2
+    lv.nic_model_type = "virtio"
+    lv.cpu_mode = "host-model"
+  end
+  
+  config.vm.provision "shell", inline: <<-SHELL
+    # Update system
+    apt-get update
+    DEBIAN_FRONTEND=noninteractive apt-get install -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" bridge-utils iptables-persistent tcpdump tshark net-tools
+    
+    # Enable IP forwarding
+    echo "net.ipv4.ip_forward=1" >> /etc/sysctl.conf
+    sysctl -p
+    
+    # Detect the external interface (could be eth0, ens3, enp0s3, etc.)
+    EXT_IFACE=$(ip route | grep default | awk '{print $5}' | head -n1)
+    
+    # Setup bridge br0 connecting eth1 (internal) to segment VMs
+    cat > /etc/netplan/02-bridge.yaml << 'NETPLAN'
+network:
+  version: 2
+  bridges:
+    br0:
+      interfaces: [eth1]
+      dhcp4: no
+      addresses: [10.20.20.2/24]
+NETPLAN
+    
+    netplan apply
+    
+    # Setup NAT for outbound traffic from honeypots
+    iptables -t nat -A POSTROUTING -s 10.20.20.0/24 -o $EXT_IFACE -j MASQUERADE
+    
+    # Allow forwarding between interfaces
+    iptables -A FORWARD -i $EXT_IFACE -o br0 -m state --state RELATED,ESTABLISHED -j ACCEPT
+    iptables -A FORWARD -i br0 -o $EXT_IFACE -j ACCEPT
+    
+    # Save iptables rules
+    netfilter-persistent save
+    
+    # Install Docker for potential management containers
+    apt-get install -y apt-transport-https ca-certificates curl gnupg lsb-release
+    curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+    echo "deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/debian $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+    apt-get update
+    apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+    
+    # Add vagrant user to docker group
+    usermod -aG docker vagrant
+    
+    echo "Gateway VM configured successfully"
+  SHELL
+end

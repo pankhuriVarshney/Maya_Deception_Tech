@@ -3,7 +3,8 @@
 import * as React from "react"
 import { Bell, Settings, Shield, MoreVertical, Moon, Sun, Monitor } from "lucide-react"
 import { useTheme } from "next-themes"
-
+import { Server, Activity } from "lucide-react"
+import { useVMStatus } from "@/hooks/use-vm-status"
 import { toast } from "@/hooks/use-toast"
 import { Button } from "@/components/ui/button"
 import {
@@ -29,12 +30,35 @@ type NavbarProps = {
   onRefresh?: () => void
   exportDisabled?: boolean
 }
-
 export function Navbar({ title = "MAYA", onExport, onRefresh, exportDisabled }: NavbarProps) {
-  const { theme, setTheme } = useTheme()
+  const { runningCount, totalVMs, totalAttackers, wsConnected } = useVMStatus()
+ const { theme, setTheme } = useTheme()
 
   return (
-    <header className="flex items-center justify-between px-6 py-3 border-b border-border bg-card">
+    
+    // <header className="flex items-center justify-between px-6 py-3 border-b border-border bg-card">
+       <header className="flex items-center justify-between px-6 py-3 border-b border-border bg-card">
+      <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2">
+          <Shield className="h-7 w-7 text-primary" />
+          <span className="text-xl font-bold tracking-wide text-foreground">{title}</span>
+        </div>
+        
+        {/* Infrastructure Quick Stats */}
+        <div className="hidden md:flex items-center gap-3 pl-4 border-l border-border">
+          <div className="flex items-center gap-1.5 text-xs">
+            <Server className="h-3.5 w-3.5 text-muted-foreground" />
+            <span className={runningCount === totalVMs ? "text-emerald-500" : "text-amber-500"}>
+              {runningCount}/{totalVMs} VMs
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5 text-xs">
+            <Activity className="h-3.5 w-3.5 text-muted-foreground" />
+            <span className="text-destructive">{totalAttackers} attackers</span>
+          </div>
+          <div className={`w-2 h-2 rounded-full ${wsConnected ? 'bg-emerald-500' : 'bg-amber-500'}`} title={wsConnected ? 'Live' : 'Polling'} />
+        </div>
+      </div>
       <div className="flex items-center gap-2">
         <Shield className="h-7 w-7 text-primary" />
         <span className="text-xl font-bold tracking-wide text-foreground">{title}</span>

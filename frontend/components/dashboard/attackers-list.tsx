@@ -89,10 +89,10 @@ export function AttackersList({ attackers, loading }: AttackersListProps) {
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-      {attackers.map((a) => (
-        <Link
-          key={a.id}
-          href={`/attacker/${encodeURIComponent(a.id)}`}
+      {(Array.isArray(attackers) ? attackers : []).map((a, index) => (
+  <Link
+    key={a.id || a.attackerId || `attacker-${index}`}
+    href={`/attacker/${encodeURIComponent(a.id || a.attackerId || 'unknown')}`}  
           className={cn("block focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background rounded-lg")}
         >
           <Card className="h-full border-border bg-card transition-colors hover:bg-card/80">
@@ -113,13 +113,17 @@ export function AttackersList({ attackers, loading }: AttackersListProps) {
               </div>
             </CardHeader>
             <CardContent className="space-y-3">
-              <div className="space-y-2">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">Threat Confidence</span>
-                  <span className="text-foreground font-medium">{Math.round(a.threatConfidence)}%</span>
-                </div>
-                <Progress value={Math.max(0, Math.min(100, a.threatConfidence))} />
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Threat Confidence</span>
+                <span className="text-foreground font-medium">
+                  {isNaN(a.threatConfidence) ? 0 : Math.round(a.threatConfidence)}%
+                </span>
               </div>
+              <Progress 
+                value={isNaN(a.threatConfidence) ? 0 : Math.max(0, Math.min(100, a.threatConfidence))} 
+              />
+             </div>
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">Last Seen</span>
                 <span className="text-foreground">{formatLastSeen(a.lastSeenAt)}</span>

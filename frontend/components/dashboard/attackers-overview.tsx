@@ -3,15 +3,14 @@
 import { Navbar } from "@/components/dashboard/navbar"
 import { AttackersList } from "@/components/dashboard/attackers-list"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { useAttackersList } from "@/hooks/use-attackers-list"
-import type { AttackerSummary } from "@/types"
+import { Badge } from "@/components/ui/badge"
+import { Server, Activity } from "lucide-react"
+import { useRealtimeAttackers } from "@/hooks/use-realtime-attackers"
+import { useVMStatus } from "@/hooks/use-vm-status"
 
-type AttackersOverviewProps = {
-  initialAttackers?: AttackerSummary[] | null
-}
-
-export function AttackersOverview({ initialAttackers }: AttackersOverviewProps) {
-  const { data, loading, error, refresh } = useAttackersList(initialAttackers)
+export function AttackersOverview() {
+  const { attackers, loading, lastUpdate, wsConnected, refresh } = useRealtimeAttackers(5000)
+  const { runningCount, totalVMs, wsConnected: vmWsConnected } = useVMStatus(10000)
 
   return (
     <div className="min-h-screen bg-background">
@@ -22,32 +21,40 @@ export function AttackersOverview({ initialAttackers }: AttackersOverviewProps) 
       />
 
       <div className="px-4 py-4 space-y-3">
+        {/* Enhanced Status Bar with VM Info */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Badge variant={wsConnected && vmWsConnected ? "default" : "secondary"}>
+              {wsConnected && vmWsConnected ? "🟢 Fully Live" : "🟡 Partially Live"}
+            </Badge>
+            {lastUpdate && (
+              <span className="text-xs text-muted-foreground">
+                Updated: {lastUpdate.toLocaleTimeString()}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-4 text-sm text-muted-foreground">
+            <span className="flex items-center gap-1">
+              <Server className="h-4 w-4" />
+              {runningCount}/{totalVMs} VMs
+            </span>
+            <span className="flex items-center gap-1">
+              <Activity className="h-4 w-4" />
+              {attackers.length} attackers
+            </span>
+          </div>
+        </div>
+
         <div className="flex items-end justify-between gap-3">
           <div className="space-y-1">
             <div className="text-lg font-semibold text-foreground">Attackers Overview</div>
             <div className="text-sm text-muted-foreground">
-              Active attacker sessions in deception infrastructure.
+              Real-time attacker sessions in deception infrastructure.
             </div>
           </div>
-          {Array.isArray(data) && (
-            <div className="text-sm text-muted-foreground">
-              Showing <span className="text-foreground font-medium">{data.length}</span>
-            </div>
-          )}
         </div>
 
-        {error ? (
-          <Card className="border-border bg-card">
-            <CardHeader>
-              <CardTitle className="text-base">Failed To Load</CardTitle>
-            </CardHeader>
-            <CardContent className="text-sm text-muted-foreground">
-              {(error as Error)?.message ?? "Unknown error"}
-            </CardContent>
-          </Card>
-        ) : (
-          <AttackersList attackers={data} loading={loading} />
-        )}
+        <AttackersList attackers={attackers} loading={loading} />
       </div>
     </div>
   )

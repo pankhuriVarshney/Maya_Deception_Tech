@@ -35,7 +35,8 @@ export function useDashboard(options: UseDashboardOptions = {}): UseDashboardRes
     abortRef.current = abortController
 
     try {
-      const res = await fetch("/api/dashboard", {
+      // Change this line in fetchDashboard
+      const res = await fetch("/api/dashboard/stats", {  // Was: "/api/dashboard"
         method: "GET",
         headers: { Accept: "application/json" },
         cache: "no-store",

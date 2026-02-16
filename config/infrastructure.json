@@ -1,0 +1,53 @@
+{
+    "gateway": {
+      "name": "gateway-vm",
+      "ip": "192.168.10.5",
+      "interface1": "eth0",
+      "interface2": "eth1",
+      "internal_network": "10.20.20.0/24",
+      "internal_gateway": "10.20.20.1"
+    },
+    "network": {
+      "cidr": "192.168.10.0/24",
+      "gateway": "192.168.10.1",
+      "dns": "192.168.10.1",
+      "honeypot_range": "192.168.10.240/28"
+    },
+    "segments": [
+      {
+        "name": "dmz",
+        "network": "10.20.20.0/26",
+        "vms": ["fake-web-01", "fake-web-02", "fake-ftp-01"]
+      },
+      {
+        "name": "database",
+        "network": "10.20.20.64/26",
+        "vms": ["fake-redis-01", "fake-mysql-01"]
+      },
+      {
+        "name": "jump",
+        "network": "10.20.20.128/26",
+        "vms": ["fake-jump-01"]
+      },
+      {
+        "name": "internal",
+        "network": "10.20.20.192/26",
+        "vms": ["fake-rdp-01", "fake-smb-01"]
+      }
+    ],
+    "crdt": {
+      "state_file": "/var/lib/.syscache",
+      "peers_config": "/etc/syslogd-helper/peers.conf",
+      "sync_interval": 300
+    },
+    "docker": {
+      "enabled": true,
+      "compose_file": "scripts/docker/docker-compose.yml",
+      "network": "honeypot-macvlan"
+    },
+    "api": {
+      "port": 3001,
+      "host": "0.0.0.0",
+      "cors_origins": ["http://localhost:3000", "http://localhost:5173"]
+    }
+  }

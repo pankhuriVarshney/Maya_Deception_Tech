@@ -27,7 +27,7 @@ export function useAttackersList(initialData?: AttackerSummary[] | null): UseAtt
     abortRef.current = abortController
 
     try {
-      const res = await fetch("/api/attackers", {
+      const res = await fetch("/api/dashboard/active-attackers", {
         method: "GET",
         headers: { Accept: "application/json" },
         cache: "no-store",
@@ -35,8 +35,11 @@ export function useAttackersList(initialData?: AttackerSummary[] | null): UseAtt
       })
 
       if (!res.ok) throw new Error(`Request failed: ${res.status}`)
-      const json = (await res.json()) as AttackerSummary[]
-      setData(json)
+      
+      // FIX: Extract data from response wrapper
+      const json = await res.json() as { success: boolean; data: AttackerSummary[]; count: number }
+      setData(json.data) // <-- Extract the array from json.data
+      
       setError(null)
     } catch (e) {
       if ((e as Error).name === "AbortError") return
@@ -60,5 +63,4 @@ export function useAttackersList(initialData?: AttackerSummary[] | null): UseAtt
   return useMemo(() => ({ loading, data, error, refresh }), [loading, data, error, refresh])
 }
 
-// Backwards-compatible name per prompt wording.
 export const useDashboardList = useAttackersList
