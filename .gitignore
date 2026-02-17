@@ -1,5 +1,6 @@
 /Static_Honeypots
 /simulations/maya-crdt/target
+/scripts/vagrant_2.4.1-1_amd64.deb
 .gitignore
 .git/
 node_modules/
