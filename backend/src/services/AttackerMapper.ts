@@ -1,22 +1,52 @@
 import { AttackEvent, Credential, LateralMovement, DecoyHost } from '../models';
 
 export function mapToAttackerSummary(dbAttacker: any): any {
+  // Ensure engagement level is calculated
+  const engagementLevel = calculateEngagementLevel(dbAttacker.dwellTime);
+  
+  // Map riskLevel to concernLevel (they're the same concept)
+  const concernLevel = dbAttacker.riskLevel;
+  
+  // Calculate threat confidence
+  const threatConfidence = calculateThreatConfidence(dbAttacker);
+  
   return {
+    // Both id and attackerId for compatibility
     id: dbAttacker.attackerId,
     attackerId: dbAttacker.attackerId,
+    
+    // Required fields for frontend
     ipAddress: dbAttacker.ipAddress,
     entryPoint: dbAttacker.entryPoint,
-    currentHost: dbAttacker.entryPoint,
-    currentPrivilege: dbAttacker.currentPrivilege,
-    riskLevel: dbAttacker.riskLevel,
-    campaign: dbAttacker.campaign,
-    lastSeenAt: dbAttacker.lastSeen,
-    dwellTime: dbAttacker.dwellTime,
-    engagementLevel: calculateEngagementLevel(dbAttacker.dwellTime),
-    concernLevel: dbAttacker.riskLevel,
-    threatConfidence: calculateThreatConfidence(dbAttacker),
-    status: dbAttacker.status,
+    currentHost: dbAttacker.entryPoint || dbAttacker.currentHost || 'unknown',
+    currentPrivilege: dbAttacker.currentPrivilege || 'User',
+    riskLevel: dbAttacker.riskLevel || 'Medium',
+    campaign: dbAttacker.campaign || 'Unknown',
+    lastSeenAt: dbAttacker.lastSeen || new Date().toISOString(),
+    dwellTime: dbAttacker.dwellTime || 0,
+    
+    // Calculated fields
+    engagementLevel: engagementLevel,
+    concernLevel: concernLevel,
+    threatConfidence: threatConfidence,
+    status: dbAttacker.status || 'Active',
   };
+}
+
+function calculateEngagementLevel(dwellTime: number): string {
+  if (dwellTime > 60) return "High";
+  if (dwellTime > 30) return "Medium";
+  return "Low";
+}
+
+function calculateThreatConfidence(attacker: any): number {
+  let score = 50;
+  if (attacker.riskLevel === "Critical") score += 30;
+  else if (attacker.riskLevel === "High") score += 20;
+  else if (attacker.riskLevel === "Medium") score += 10;
+  if (attacker.currentPrivilege === "Admin" || attacker.currentPrivilege === "root") score += 10;
+  if (attacker.dwellTime > 60) score += 10;
+  return Math.min(100, Math.max(0, score));
 }
 
 export async function mapToDashboardData(dbAttacker: any): Promise<any> {
@@ -69,21 +99,21 @@ export async function mapToDashboardData(dbAttacker: any): Promise<any> {
 }
 
 // Helper functions
-function calculateEngagementLevel(dwellTime: number): string {
-  if (dwellTime > 60) return "High";
-  if (dwellTime > 30) return "Medium";
-  return "Low";
-}
+// function calculateEngagementLevel(dwellTime: number): string {
+//   if (dwellTime > 60) return "High";
+//   if (dwellTime > 30) return "Medium";
+//   return "Low";
+// }
 
-function calculateThreatConfidence(attacker: any): number {
-  let score = 50;
-  if (attacker.riskLevel === "Critical") score += 30;
-  else if (attacker.riskLevel === "High") score += 20;
-  else if (attacker.riskLevel === "Medium") score += 10;
-  if (attacker.currentPrivilege === "Admin") score += 10;
-  if (attacker.dwellTime > 60) score += 10;
-  return Math.min(100, score);
-}
+// function calculateThreatConfidence(attacker: any): number {
+//   let score = 50;
+//   if (attacker.riskLevel === "Critical") score += 30;
+//   else if (attacker.riskLevel === "High") score += 20;
+//   else if (attacker.riskLevel === "Medium") score += 10;
+//   if (attacker.currentPrivilege === "Admin") score += 10;
+//   if (attacker.dwellTime > 60) score += 10;
+//   return Math.min(100, score);
+// }
 
 async function getActiveAttackerCount(): Promise<number> {
   const { Attacker } = require('../models');

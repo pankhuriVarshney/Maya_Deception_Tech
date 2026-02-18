@@ -17,11 +17,12 @@ function VMStatusBadge({ status }: { status: VMStatusType['status'] }) {
     running: { icon: CheckCircle, color: "text-emerald-500", bg: "bg-emerald-500/10", label: "Running" },
     stopped: { icon: XCircle, color: "text-rose-500", bg: "bg-rose-500/10", label: "Stopped" },
     unknown: { icon: AlertCircle, color: "text-amber-500", bg: "bg-amber-500/10", label: "Unknown" },
+    error: { icon: XCircle, color: "text-rose-500", bg: "bg-rose-500/10", label: "Error" },
   }
-  
-  const config = configs[status]
+
+  const config = configs[status] || configs.unknown
   const Icon = config.icon
-  
+
   return (
     <Badge variant="outline" className={cn("gap-1.5", config.bg)}>
       <Icon className={cn("h-3 w-3", config.color)} />

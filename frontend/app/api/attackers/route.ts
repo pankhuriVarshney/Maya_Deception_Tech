@@ -8,10 +8,14 @@ export function GET() {
   const now = new Date()
   const body = getMockAttackers(now) satisfies AttackerSummary[]
 
-  return NextResponse.json(body, {
+  return NextResponse.json({
+    success: true,
+    data: body,
+    count: body.length,
+    timestamp: new Date().toISOString()
+  }, {
     headers: {
       "Cache-Control": "no-store",
     },
   })
 }
-

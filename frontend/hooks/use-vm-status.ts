@@ -43,6 +43,7 @@ type UseVMStatusResult = {
 
 let globalFetchPromise: Promise<void> | null = null
 let lastFetchTime = 0
+const FETCH_COOLDOWN = 2000 // Reduced from 10000ms to 2000ms
 
 export function useVMStatus(): UseVMStatusResult {
   const [vms, setVMs] = useState<VMStatus[]>([])
@@ -51,23 +52,32 @@ export function useVMStatus(): UseVMStatusResult {
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null)
   const { connected: wsConnected, subscribe } = useSharedWebSocket()
 
-  const fetchVMs = useCallback(async () => {
-    // Deduplicate requests - if already fetching, wait for it
-    if (globalFetchPromise) {
+  const fetchVMs = useCallback(async (force = false) => {
+    // Allow force fetch bypassing rate limit
+    if (!force && globalFetchPromise) {
       await globalFetchPromise
       return
     }
 
-    // Rate limit: max once every 10 seconds
+    // Only rate limit non-force requests
     const now = Date.now()
-    if (now - lastFetchTime < 10000) return
-    lastFetchTime = now
+    if (!force && now - lastFetchTime < FETCH_COOLDOWN) {
+      console.log('Rate limited (use-vm-status), skipping fetch')
+      return
+    }
+    
+    if (!force) {
+      lastFetchTime = now
+    }
 
     const fetchPromise = (async () => {
       try {
         setLoading(prev => vms.length === 0 ? true : prev)
-        
-        const res = await fetch("/api/vms", { cache: "no-store" })
+
+        const res = await fetch("/api/vms", { 
+          cache: "no-store",
+          headers: { 'Pragma': 'no-cache' }
+        })
 
         if (res.status === 429) {
           console.warn('Rate limited by backend')
@@ -78,15 +88,16 @@ export function useVMStatus(): UseVMStatusResult {
         if (!res.ok) throw new Error(`Failed: ${res.status}`)
 
         const json = await res.json()
-        
+
         const parsedVMs = (json.vms || []).map((vm: any) => ({
           ...vm,
           lastSeen: new Date(vm.lastSeen || Date.now()),
         }))
-        
+
         setVMs(parsedVMs)
         setLastUpdate(new Date())
         setError(null)
+        console.log(`Fetched ${parsedVMs.length} VMs from backend`)
       } catch (e) {
         setError(e instanceof Error ? e.message : "Unknown error")
       } finally {
@@ -104,14 +115,15 @@ export function useVMStatus(): UseVMStatusResult {
     fetchVMs()
   }, [fetchVMs])
 
-  // WebSocket updates only
+  // WebSocket updates
   useEffect(() => {
     const unsubscribe = subscribe((msg) => {
       if (msg.type === 'SYNC_COMPLETE' || msg.type === 'INITIAL_STATE') {
-        fetchVMs()
+        console.log('VM status hook: SYNC_COMPLETE received, forcing refresh')
+        fetchVMs(true) // Force refresh
       }
     })
-    
+
     return unsubscribe
   }, [subscribe, fetchVMs])
 
@@ -139,7 +151,7 @@ export function useVMStatus(): UseVMStatusResult {
     error,
     lastUpdate,
     wsConnected,
-    refresh: fetchVMs,
+    refresh: () => fetchVMs(true),
     ...stats,
   }
 }

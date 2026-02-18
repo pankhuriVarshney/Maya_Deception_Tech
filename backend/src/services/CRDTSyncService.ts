@@ -170,6 +170,9 @@ export class CRDTSyncService extends EventEmitter {
 
   async performSync() {
     this.isSyncing = true;
+    let newEventsCount = 0;
+    let attackersFound = 0;
+    
     try {
       const { exec } = require('child_process');
       const util = require('util');
@@ -182,12 +185,12 @@ export class CRDTSyncService extends EventEmitter {
       for (const vm of vmDirs) {
         try {
           const vmPath = path.join(this.vagrantDir, vm);
-          
+
           const { stdout: statusOutput } = await execAsync(
             `cd ${vmPath} && vagrant status --machine-readable`,
             { timeout: 5000 }
           );
-          
+
           if (!statusOutput.includes('state-running,running')) {
             continue;
           }
@@ -199,14 +202,18 @@ export class CRDTSyncService extends EventEmitter {
 
           if (stdout && stdout.trim() !== '{}' && stdout.trim() !== '') {
             const state = JSON.parse(stdout);
+            const beforeCount = Object.keys(state.attackers || {}).length;
+            attackersFound += beforeCount;
             await this.processState(state, vm);
+            logger.info(`Processed state from ${vm}: ${beforeCount} attackers`);
           }
         } catch (error) {
           logger.warn(`Failed to sync with ${vm}:`, (error as Error).message);
         }
       }
 
-      this.emit('syncComplete');
+      logger.info(`Sync complete: ${attackersFound} attackers found across ${vmDirs.length} VMs`);
+      this.emit('syncComplete', { attackersCount: attackersFound, timestamp: new Date().toISOString() });
     } catch (error) {
       logger.error('CRDT sync failed:', error);
       this.emit('syncError', error);
@@ -217,9 +224,13 @@ export class CRDTSyncService extends EventEmitter {
 
   private async processState(state: any, sourceHost: string) {
     const nodeId = state.node_id || sourceHost;
-    
+    logger.info(`Processing CRDT state from ${sourceHost}, node_id: ${nodeId}`);
+    logger.info(`State contents: attackers=${Object.keys(state.attackers || {}).length}, creds=${state.stolen_creds?.adds ? Object.keys(state.stolen_creds.adds).length : 0}`);
+
     if (state.attackers) {
+      logger.info(`Processing ${Object.keys(state.attackers).length} attackers from ${sourceHost}`);
       for (const [attackerIp, attackerState] of Object.entries<any>(state.attackers)) {
+        logger.info(`Processing attacker: ${attackerIp} from ${sourceHost}`);
         await this.updateAttacker(attackerIp, attackerState, sourceHost);
       }
     }
@@ -241,9 +252,9 @@ export class CRDTSyncService extends EventEmitter {
 
   private async updateAttacker(attackerIp: string, state: any, sourceHost: string) {
     const attackerId = `APT-${attackerIp.replace(/\./g, '-')}`;
-    
+
     let attacker = await Attacker.findOne({ attackerId });
-    
+
     if (!attacker) {
       attacker = new Attacker({
         attackerId,
@@ -257,15 +268,17 @@ export class CRDTSyncService extends EventEmitter {
         dwellTime: 0,
         status: 'Active'
       });
+      logger.info(`Created new attacker: ${attackerId} from ${sourceHost}`);
     } else {
       attacker.lastSeen = new Date();
       const dwellMs = attacker.lastSeen.getTime() - attacker.firstSeen.getTime();
       attacker.dwellTime = Math.floor(dwellMs / 60000);
-      
+
       const visitedCount = state.visited_decoys?.elements?.length || 0;
       if (visitedCount > 5) attacker.riskLevel = 'Critical';
       else if (visitedCount > 3) attacker.riskLevel = 'High';
       else if (visitedCount > 1) attacker.riskLevel = 'Medium';
+      logger.info(`Updated attacker: ${attackerId}, dwellTime: ${attacker.dwellTime}min, risk: ${attacker.riskLevel}`);
     }
 
     await attacker.save();

@@ -88,22 +88,35 @@ export class WebSocketHandler {
 
   private setupEventListeners() {
     this.crdtSync.on('newEvent', async (event) => {
+      logger.info(`WebSocket broadcasting NEW_EVENT: ${event.eventId}`);
       this.broadcast({ type: 'NEW_EVENT', data: event, timestamp: new Date().toISOString() });
     });
 
     this.crdtSync.on('attackerUpdated', async (attacker) => {
+      logger.info(`WebSocket broadcasting ATTACKER_UPDATED: ${attacker.attackerId}`);
       this.broadcast({ type: 'ATTACKER_UPDATED', data: attacker, timestamp: new Date().toISOString() });
+      
+      // Also broadcast updated stats
       const stats = await this.dashboardService.getDashboardStats();
       this.broadcast({ type: 'STATS_UPDATED', data: stats, timestamp: new Date().toISOString() });
     });
 
-    this.crdtSync.on('syncComplete', async () => {
+    this.crdtSync.on('syncComplete', async (syncData) => {
       try {
+        logger.info(`WebSocket broadcasting SYNC_COMPLETE: ${JSON.stringify(syncData)}`);
         const [stats, activeAttackers] = await Promise.all([
           this.dashboardService.getDashboardStats(),
           this.getActiveAttackers()
         ]);
-        this.broadcast({ type: 'SYNC_COMPLETE', data: { stats, activeAttackers }, timestamp: new Date().toISOString() });
+        this.broadcast({ 
+          type: 'SYNC_COMPLETE', 
+          data: { 
+            stats, 
+            activeAttackers,
+            syncData 
+          }, 
+          timestamp: new Date().toISOString() 
+        });
       } catch (error) {
         logger.error('Error broadcasting sync complete:', error);
       }

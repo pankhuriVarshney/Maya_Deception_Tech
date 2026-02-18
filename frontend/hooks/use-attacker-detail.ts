@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { AttackerDetails } from "@/types"
+import { useSharedWebSocket } from "./use-shared-websocket"
 
 type UseAttackerDetailResult = {
   loading: boolean
@@ -18,14 +19,15 @@ export function useAttackerDetail(
   const [data, setData] = useState<AttackerDetails | null>(initialForId)
   const [error, setError] = useState<unknown>(null)
   const [loading, setLoading] = useState<boolean>(!initialForId)
+  const { connected: wsConnected, subscribe } = useSharedWebSocket()
 
   const inFlightRef = useRef(false)
   const abortRef = useRef<AbortController | null>(null)
   const prevIdRef = useRef<string | null>(null)
 
-  const fetchDetail = useCallback(async () => {
+  const fetchDetail = useCallback(async (force = false) => {
     if (!id) return
-    if (inFlightRef.current) return
+    if (!force && inFlightRef.current) return
     inFlightRef.current = true
 
     abortRef.current?.abort()
@@ -33,24 +35,32 @@ export function useAttackerDetail(
     abortRef.current = abortController
 
     const url = `/api/dashboard/attacker/${encodeURIComponent(id)}`
-    
+
     try {
       const res = await fetch(url, {
         method: "GET",
-        headers: { Accept: "application/json" },
+        headers: { 
+          Accept: "application/json",
+          'Pragma': 'no-cache',
+        },
         cache: "no-store",
         signal: abortController.signal,
       })
 
       if (!res.ok) throw new Error(`Request failed: ${res.status}`)
-      
-      // FIX: Extract data from response wrapper
+
       const json = await res.json() as { success: boolean; data: AttackerDetails }
-      setData(json.data) // <-- Extract from json.data
       
+      if (!json.success || !json.data) {
+        throw new Error('No data received')
+      }
+
+      setData(json.data)
+      console.log(`Fetched attacker details for ${id}:`, json.data.attacker)
       setError(null)
     } catch (e) {
       if ((e as Error).name === "AbortError") return
+      console.error('Error fetching attacker details:', e)
       setError(e)
     } finally {
       setLoading(false)
@@ -59,9 +69,9 @@ export function useAttackerDetail(
   }, [id])
 
   const refresh = useCallback(() => {
-    setLoading((prev) => (data ? prev : true))
-    void fetchDetail()
-  }, [data, fetchDetail])
+    setLoading(true)
+    void fetchDetail(true)
+  }, [fetchDetail])
 
   useEffect(() => {
     const prevId = prevIdRef.current
@@ -83,9 +93,37 @@ export function useAttackerDetail(
     }
 
     setError(null)
-    void fetchDetail()
+    void fetchDetail(true)
     return () => abortRef.current?.abort()
   }, [fetchDetail, id, initialForId])
+
+  // WebSocket updates for real-time attacker data
+  useEffect(() => {
+    if (!id) return
+
+    const unsubscribe = subscribe((msg) => {
+      console.log('useAttackerDetail received:', msg.type, msg.data?.attackerId)
+      
+      // Refresh if this attacker was updated
+      if (msg.type === 'ATTACKER_UPDATED' && msg.data?.attackerId === id) {
+        console.log('Attacker updated via WebSocket, refreshing...')
+        fetchDetail(true)
+      }
+      
+      // Also refresh on sync complete or new events
+      if (msg.type === 'SYNC_COMPLETE' || msg.type === 'NEW_EVENT') {
+        // Check if the event is related to this attacker
+        const isRelated = msg.data?.attackerId === id || 
+                         msg.data?.data?.attackerId === id
+        if (isRelated) {
+          console.log('Related event detected, refreshing attacker...')
+          fetchDetail(true)
+        }
+      }
+    })
+
+    return unsubscribe
+  }, [id, subscribe, fetchDetail])
 
   return useMemo(() => ({ loading, data, error, refresh }), [loading, data, error, refresh])
 }

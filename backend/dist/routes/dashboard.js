@@ -106,5 +106,86 @@ router.get('/active-attackers', (0, errorHandler_1.asyncHandler)(async (req, res
         timestamp: new Date().toISOString()
     });
 }));
+// DEBUG: Check MongoDB directly for attackers
+router.get('/debug/attackers', (0, errorHandler_1.asyncHandler)(async (req, res) => {
+    const { Attacker, AttackEvent } = require('../models');
+    const [allAttackers, activeAttackers, recentEvents] = await Promise.all([
+        Attacker.find().sort({ lastSeen: -1 }),
+        Attacker.find({ status: 'Active' }).sort({ lastSeen: -1 }),
+        AttackEvent.find().sort({ timestamp: -1 }).limit(10)
+    ]);
+    res.json({
+        success: true,
+        data: {
+            allAttackers: allAttackers.map((a) => ({
+                attackerId: a.attackerId,
+                ipAddress: a.ipAddress,
+                entryPoint: a.entryPoint,
+                status: a.status,
+                lastSeen: a.lastSeen,
+                createdAt: a.createdAt
+            })),
+            activeAttackers: activeAttackers.map((a) => ({
+                attackerId: a.attackerId,
+                ipAddress: a.ipAddress,
+                entryPoint: a.entryPoint,
+                status: a.status,
+                lastSeen: a.lastSeen
+            })),
+            recentEvents: recentEvents.map((e) => ({
+                eventId: e.eventId,
+                attackerId: e.attackerId,
+                type: e.type,
+                description: e.description,
+                timestamp: e.timestamp
+            }))
+        },
+        timestamp: new Date().toISOString()
+    });
+}));
+// POST /api/dashboard/attacker - Create a test attacker (for debugging)
+router.post('/attacker', (0, errorHandler_1.asyncHandler)(async (req, res) => {
+    const { Attacker, AttackEvent } = require('../models');
+    const { attackerId, ipAddress, entryPoint, campaign } = req.body;
+    if (!attackerId || !ipAddress) {
+        return res.status(400).json({
+            success: false,
+            error: 'attackerId and ipAddress are required'
+        });
+    }
+    const attacker = new Attacker({
+        attackerId,
+        ipAddress,
+        entryPoint: entryPoint || 'Manual Test',
+        currentPrivilege: 'User',
+        riskLevel: 'Medium',
+        campaign: campaign || 'Test Campaign',
+        firstSeen: new Date(),
+        lastSeen: new Date(),
+        dwellTime: 0,
+        status: 'Active'
+    });
+    await attacker.save();
+    // Create an initial event
+    const event = new AttackEvent({
+        eventId: `evt-test-${Date.now()}`,
+        attackerId,
+        type: 'Initial Access',
+        technique: 'T1078',
+        tactic: 'Initial Access',
+        description: 'Test attacker created via API',
+        sourceHost: ipAddress,
+        targetHost: entryPoint || 'Manual Test',
+        severity: 'Low',
+        status: 'Detected'
+    });
+    await event.save();
+    const dashboard = await dashboardService.getAttackerDashboard(attackerId);
+    res.json({
+        success: true,
+        data: dashboard,
+        timestamp: new Date().toISOString()
+    });
+}));
 exports.default = router;
 //# sourceMappingURL=dashboard.js.map

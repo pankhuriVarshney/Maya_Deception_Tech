@@ -234,12 +234,27 @@ fn sync_with_peers(state_file: &str, last_hash: &mut String) {
 }
 
 fn detect_attacker_id() -> String {
+    // Try SSH_CONNECTION first
     if let Ok(conn) = std::env::var("SSH_CONNECTION") {
-        if let Some(ip) = conn.split_whitespace().next() { return ip.to_string(); }
+        if let Some(ip) = conn.split_whitespace().next() {
+            return ip.to_string();
+        }
     }
+    
+    // Try SSH_CLIENT
     if let Ok(client) = std::env::var("SSH_CLIENT") {
-        if let Some(ip) = client.split_whitespace().next() { return ip.to_string(); }
+        if let Some(ip) = client.split_whitespace().next() {
+            return ip.to_string();
+        }
     }
+    
+    // Fallback: check whoami to see if we're running as a specific user
+    // This helps when commands are run via sudo
+    if let Ok(user) = std::env::var("SUDO_USER") {
+        // Log that we're running under sudo
+        eprintln!("Running as sudo user: {}", user);
+    }
+    
     "unknown".to_string()
 }
 
@@ -250,27 +265,55 @@ fn main() {
     let mut last_hash = state.hash();
 
     match args.get(1).map(|s| s.as_str()) {
+        // NEW: visit with explicit attacker IP
+        // syslogd-helper visit <attacker_ip> <decoy_name>
         Some("visit") => {
-            if let Some(decoy) = args.get(2) {
-                let attacker = detect_attacker_id();
-                state.observe_visit(&attacker, decoy);
+            if let (Some(attacker_ip), Some(decoy)) = (args.get(2), args.get(3)) {
+                state.observe_visit(attacker_ip, decoy);
                 state.save(STATE_FILE);
+                eprintln!("Recorded visit: attacker={} decoy={}", attacker_ip, decoy);
+            } else {
+                // Fallback to auto-detect
+                if let Some(decoy) = args.get(2) {
+                    let attacker = detect_attacker_id();
+                    eprintln!("WARNING: Using auto-detected attacker IP: {}", attacker);
+                    state.observe_visit(&attacker, decoy);
+                    state.save(STATE_FILE);
+                }
             }
         }
+        
+        // NEW: action with explicit attacker IP
+        // syslogd-helper action <attacker_ip> <decoy_name> <action>
         Some("action") => {
-            if let (Some(decoy), Some(action)) = (args.get(2), args.get(3)) {
-                let attacker = detect_attacker_id();
-                state.record_action(&attacker, decoy, action);
+            if let (Some(attacker_ip), Some(decoy), Some(action)) = (args.get(2), args.get(3), args.get(4)) {
+                state.record_action(attacker_ip, decoy, action);
                 state.save(STATE_FILE);
+                eprintln!("Recorded action: attacker={} decoy={} action={}", attacker_ip, decoy, action);
+            } else {
+                // Fallback to auto-detect
+                if let (Some(decoy), Some(action)) = (args.get(2), args.get(3)) {
+                    let attacker = detect_attacker_id();
+                    eprintln!("WARNING: Using auto-detected attacker IP: {}", attacker);
+                    state.record_action(&attacker, decoy, action);
+                    state.save(STATE_FILE);
+                }
             }
         }
+        
+        // NEW: move with explicit attacker IP
         Some("move") => {
-            if let Some(location) = args.get(2) {
+            if let (Some(attacker_ip), Some(location)) = (args.get(2), args.get(3)) {
+                state.update_location(attacker_ip, location);
+                state.save(STATE_FILE);
+            } else if let Some(location) = args.get(2) {
                 let attacker = detect_attacker_id();
+                eprintln!("WARNING: Using auto-detected attacker IP: {}", attacker);
                 state.update_location(&attacker, location);
                 state.save(STATE_FILE);
             }
         }
+        
         Some("cred") => {
             if let Some(cred) = args.get(2) {
                 state.add_cred(cred);
@@ -303,6 +346,15 @@ fn main() {
             println!("Decoys visited: {}", total_decoys);
             println!("State hash: {}", state.hash());
             println!("===============================");
+            
+            // Print attacker IPs
+            println!("\nTracked Attackers:");
+            for (ip, attacker) in &state.attackers {
+                println!("  - IP: {} | Visited: {} decoys", 
+                    ip, 
+                    attacker.visited_decoys.elements.len()
+                );
+            }
         }
         Some("show") => { state.print_summary(); }
         None => { println!("Usage: syslogd-helper <visit|action|move|cred|session|merge|daemon|hash|stats|show>"); }
