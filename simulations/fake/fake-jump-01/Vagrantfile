@@ -6,121 +6,156 @@ Vagrant.configure("2") do |config|
   config.vm.box_version = "4.3.12"
   config.vm.hostname = "fake-jump-01"
 
-  # Changed IP to avoid conflict
   config.vm.network "private_network",
-      libvirt__network_name: "maya_internal",
-      ip: "10.20.20.10"
+    libvirt__network_name: "maya_internal",
+    ip: "10.20.20.70"
 
-  config.vm.provision "shell", inline: <<-SHELL
-     apk add openssh bash
-     rc-update add sshd
-     service sshd start
+  config.vm.provider :libvirt do |lv|
+    lv.memory = 512
+    lv.cpus = 1
+    lv.nic_model_type = "virtio"
+    lv.cpu_mode = "host-model"
+  end
 
-     adduser -D admin
-     echo "admin:fakejump01!" | chpasswd
-     addgroup admin wheel
-     echo "%wheel ALL=(ALL) ALL" >> /etc/sudoers
+  # First provisioner: Install packages
+  config.vm.provision "setup", type: "shell", inline: <<-SHELL
+    set -e
+    echo "[+] Updating package index..."
+    apk update
+    
+    echo "[+] Installing base packages..."
+    apk add openssh bash docker docker-cli-compose openrc
+    
+    echo "[+] Setting up OpenRC..."
+    mkdir -p /run/openrc
+    touch /run/openrc/softlevel
+    openrc boot
+    
+    echo "[+] Enabling services..."
+    rc-update add sshd default
+    rc-update add docker boot
+    
+    echo "[+] Starting SSH..."
+    rc-service sshd start
+    
+    echo "[+] Creating admin user..."
+    adduser -D admin
+    echo "admin:fakejump01!" | chpasswd
+    addgroup admin wheel
+    echo "%wheel ALL=(ALL) ALL" >> /etc/sudoers
+    addgroup vagrant docker
+    
+    echo "[+] Setup complete"
   SHELL
 
-  # Fixed: Alpine uses apk, not apt-get
-  config.vm.provision "shell", inline: <<-SHELL
-    # Install Docker if not present (Alpine version)
-    if ! command -v docker &> /dev/null; then
-      apk add docker
-      rc-update add docker boot
-      service docker start
-      addgroup vagrant docker
+  # Second provisioner: Start Docker and configure networks
+  config.vm.provision "docker", type: "shell", inline: <<-SHELL
+    set -e
+    echo "[+] Starting Docker service..."
+    rc-service docker start
+    
+    echo "[+] Waiting for Docker to initialize..."
+    sleep 10
+    
+    # Check Docker status
+    if ! rc-service docker status; then
+      echo "⚠️  Docker failed to start, attempting to restart..."
+      rc-service docker restart
+      sleep 5
     fi
     
-    # Enable promiscuous mode on eth1 (private network interface)
-    ip link set eth1 promisc on
+    echo "[+] Docker status:"
+    rc-service docker status
     
-    # Get IP and network info from eth1
-    IP_ADDR=$(ip -4 addr show eth1 | grep -oP '(?<=inet\\s)\\d+(\\.\\d+){3}')
-    NETWORK=$(ip -4 addr show eth1 | grep -oP '(?<=inet\\s)\\d+(\\.\\d+){3}/\\d+')
+    echo "[+] Configuring network interfaces..."
+    # Enable promiscuous mode on eth1
+    ip link set eth1 promisc on || echo "Warning: Could not set promisc mode"
     
-    # Create macvlan network for containers to appear as physical hosts
+    # Get network details
+    IP_ADDR=$(ip -4 addr show eth1 | grep -oE 'inet [0-9.]+' | cut -d' ' -f2 | head -1)
+    NETWORK="10.20.20.0/24"
+    
+    if [ -z "$IP_ADDR" ]; then
+      echo "Warning: Could not detect IP on eth1, using fallback"
+      IP_ADDR="10.20.20.70"
+    fi
+    
+    echo "[+] IP Address: $IP_ADDR"
+    echo "[+] Network: $NETWORK"
+    
+    # Remove old networks if they exist
+    echo "[+] Cleaning up old Docker networks..."
     docker network rm honeypot-macvlan 2>/dev/null || true
+    docker network rm honeypot-internal 2>/dev/null || true
+    
+    # Create macvlan network
+    echo "[+] Creating honeypot-macvlan network..."
     docker network create -d macvlan \
       --subnet="${NETWORK}" \
-      --gateway="${IP_ADDR%/*}" \
+      --gateway="${IP_ADDR}" \
       -o parent=eth1 \
-      honeypot-macvlan
+      honeypot-macvlan || echo "Warning: Failed to create macvlan network"
     
-    # Create internal bridge network for container-to-container communication
-    docker network rm honeypot-internal 2>/dev/null || true
-    docker network create --driver bridge honeypot-internal
+    # Create internal bridge
+    echo "[+] Creating honeypot-internal network..."
+    docker network create \
+      --driver bridge \
+      honeypot-internal || echo "Warning: Failed to create internal network"
     
-    echo "Docker networking configured for macvlan"
+    # List networks
+    echo "[+] Docker networks created:"
+    docker network ls | grep -E "honeypot|macvlan" || echo "No honeypot networks found"
+    
+    # Create a simple syslogd-helper
+    echo "[+] Installing syslogd-helper..."
+    cat > /usr/local/bin/syslogd-helper << 'EOFF'
+#!/bin/sh
+case "$1" in
+  stats)
+    if [ -f /var/lib/.syscache ]; then
+      cat /var/lib/.syscache
+    else
+      echo '{"attackers":{},"stolen_creds":{},"active_sessions":{}}'
+    fi
+    ;;
+  *)
+    echo "Usage: $0 {stats}"
+    exit 1
+    ;;
+esac
+EOFF
+    chmod +x /usr/local/bin/syslogd-helper
+    
+    echo "[+] Provisioning complete!"
   SHELL
-
-  # Docker macvlan network configuration (appended by orchestrator)
-  config.vm.provision "shell", inline: <<-SHELL
-    # Install Docker if not present
-    if ! command -v docker &> /dev/null; then
-      apt-get update
-      apt-get install -y apt-transport-https ca-certificates curl gnupg lsb-release
-      curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
-      echo "deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/debian $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
-      apt-get update
-      apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
-      usermod -aG docker vagrant
+  
+  # Final provisioner: Verify everything is working
+  config.vm.provision "verify", type: "shell", inline: <<-SHELL
+    echo "[+] Verifying installation..."
+    
+    # Check Docker
+    if docker info >/dev/null 2>&1; then
+      echo "[+] Docker is running"
+      docker version | head -3
+    else
+      echo "[!] Docker is not running"
+      echo "    Attempting to start Docker..."
+      rc-service docker start
+      sleep 5
+      docker info >/dev/null 2>&1 && echo "    ✅ Docker started" || echo "    ❌ Docker still not running"
     fi
     
-    # Enable promiscuous mode on eth1 (private network interface)
-    ip link set eth1 promisc on
+    # Check networks
+    echo "[+] Networks:"
+    docker network ls | grep -E "honeypot|macvlan" || echo "No honeypot networks found"
     
-    # Get IP and network info from eth1
-    IP_ADDR=$(ip -4 addr show eth1 | grep -oP '(?<=inet\s)\d+(\.\d+){3}')
-    NETWORK=$(ip -4 addr show eth1 | grep -oP '(?<=inet\s)\d+(\.\d+){3}/\d+')
-    
-    # Create macvlan network for containers to appear as physical hosts
-    docker network rm honeypot-macvlan 2>/dev/null || true
-    docker network create -d macvlan \
-      --subnet="${NETWORK}" \
-      --gateway="${IP_ADDR%/*}" \
-      -o parent=eth1 \
-      honeypot-macvlan
-    
-    # Create internal bridge network for container-to-container communication
-    docker network rm honeypot-internal 2>/dev/null || true
-    docker network create --driver bridge honeypot-internal
-    
-    echo "Docker networking configured for macvlan"
-  SHELL
-
-  # Docker macvlan network configuration (appended by orchestrator)
-  config.vm.provision "shell", inline: <<-SHELL
-    # Install Docker if not present
-    if ! command -v docker &> /dev/null; then
-      apt-get update
-      apt-get install -y apt-transport-https ca-certificates curl gnupg lsb-release
-      curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
-      echo "deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/debian $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
-      apt-get update
-      apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
-      usermod -aG docker vagrant
+    # Check syslogd-helper
+    if command -v syslogd-helper >/dev/null 2>&1; then
+      echo "[+] syslogd-helper is installed"
+    else
+      echo "[!] syslogd-helper is missing"
     fi
     
-    # Enable promiscuous mode on eth1 (private network interface)
-    ip link set eth1 promisc on
-    
-    # Get IP and network info from eth1
-    IP_ADDR=$(ip -4 addr show eth1 | grep -oP '(?<=inet\s)\d+(\.\d+){3}')
-    NETWORK=$(ip -4 addr show eth1 | grep -oP '(?<=inet\s)\d+(\.\d+){3}/\d+')
-    
-    # Create macvlan network for containers to appear as physical hosts
-    docker network rm honeypot-macvlan 2>/dev/null || true
-    docker network create -d macvlan \
-      --subnet="${NETWORK}" \
-      --gateway="${IP_ADDR%/*}" \
-      -o parent=eth1 \
-      honeypot-macvlan
-    
-    # Create internal bridge network for container-to-container communication
-    docker network rm honeypot-internal 2>/dev/null || true
-    docker network create --driver bridge honeypot-internal
-    
-    echo "Docker networking configured for macvlan"
+    echo "[+] Verification complete"
   SHELL
 end

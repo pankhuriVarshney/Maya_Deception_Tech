@@ -4,16 +4,11 @@
 Vagrant.configure("2") do |config|
   config.vm.box = "generic/debian12"
   config.vm.box_version = "4.3.12"
-  
-  # Fixed: Match hostname to filename OR change filename to fake-redis-01
-  # Option A: If it's a web server:
-  # config.vm.hostname = "fake-web-02"
-  # Option B: If it's a Redis server:
   config.vm.hostname = "fake-redis-01"
 
   config.vm.network "private_network",
     libvirt__network_name: "maya_internal",
-    ip: "10.20.20.12"  # Unique IP
+    ip: "10.20.20.12"
 
   config.vm.provider :libvirt do |lv|
     lv.memory = 512
@@ -21,114 +16,48 @@ Vagrant.configure("2") do |config|
   end
 
   config.vm.provision "shell", inline: <<-SHELL
+    set -e
+
+    echo "[+] Updating system..."
     apt update
-    # Fixed: Added redis-server if this is a Redis host, removed nginx if not needed
-    # Or keep nginx and change hostname to fake-web-02
-    apt install -y nginx openssh-server redis-server sudo
 
-    echo "Corp Internal Web Portal" > /var/www/html/index.html
-    useradd -m -s /bin/bash admin
-    echo "admin:fakeweb02!" | chpasswd
-    usermod -aG sudo admin
-  SHELL
+    echo "[+] Installing packages..."
+    apt install -y redis-server openssh-server sudo docker.io
 
-  # Single Docker provisioning block (removed duplicates)
-  config.vm.provision "shell", inline: <<-SHELL
-    if ! command -v docker &> /dev/null; then
-      apt-get update
-      apt-get install -y apt-transport-https ca-certificates curl gnupg lsb-release
-      curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
-      echo "deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/debian $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
-      apt-get update
-      apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
-      usermod -aG docker vagrant
-    fi
-    
+    echo "[+] Enabling services..."
+    systemctl enable redis-server
+    systemctl enable ssh
+    systemctl enable docker
+    systemctl start redis-server
+    systemctl start ssh
+    systemctl start docker
+
+    echo "[+] Creating admin user..."
+    id -u admin >/dev/null 2>&1 || useradd -m -s /bin/bash admin
+    echo "admin:fakeredis01!" | chpasswd
+    usermod -aG sudo,docker admin
+
+    echo "[+] Configuring Docker macvlan..."
+
     ip link set eth1 promisc on
-    
+
     IP_ADDR=$(ip -4 addr show eth1 | grep -oP '(?<=inet\\s)\\d+(\\.\\d+){3}')
     NETWORK=$(ip -4 addr show eth1 | grep -oP '(?<=inet\\s)\\d+(\\.\\d+){3}/\\d+')
-    
+
     docker network rm honeypot-macvlan 2>/dev/null || true
+    docker network rm honeypot-internal 2>/dev/null || true
+
     docker network create -d macvlan \
       --subnet="${NETWORK}" \
-      --gateway="${IP_ADDR%/*}" \
+      --gateway="${IP_ADDR}" \
       -o parent=eth1 \
       honeypot-macvlan
-    
-    docker network rm honeypot-internal 2>/dev/null || true
-    docker network create --driver bridge honeypot-internal
-    
-    echo "Docker networking configured for macvlan"
+
+    docker network create \
+      --driver bridge \
+      honeypot-internal
+
+    echo "[+] Provisioning complete."
   SHELL
 
-  # Docker macvlan network configuration (appended by orchestrator)
-  config.vm.provision "shell", inline: <<-SHELL
-    # Install Docker if not present
-    if ! command -v docker &> /dev/null; then
-      apt-get update
-      apt-get install -y apt-transport-https ca-certificates curl gnupg lsb-release
-      curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
-      echo "deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/debian $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
-      apt-get update
-      apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
-      usermod -aG docker vagrant
-    fi
-    
-    # Enable promiscuous mode on eth1 (private network interface)
-    ip link set eth1 promisc on
-    
-    # Get IP and network info from eth1
-    IP_ADDR=$(ip -4 addr show eth1 | grep -oP '(?<=inet\s)\d+(\.\d+){3}')
-    NETWORK=$(ip -4 addr show eth1 | grep -oP '(?<=inet\s)\d+(\.\d+){3}/\d+')
-    
-    # Create macvlan network for containers to appear as physical hosts
-    docker network rm honeypot-macvlan 2>/dev/null || true
-    docker network create -d macvlan \
-      --subnet="${NETWORK}" \
-      --gateway="${IP_ADDR%/*}" \
-      -o parent=eth1 \
-      honeypot-macvlan
-    
-    # Create internal bridge network for container-to-container communication
-    docker network rm honeypot-internal 2>/dev/null || true
-    docker network create --driver bridge honeypot-internal
-    
-    echo "Docker networking configured for macvlan"
-  SHELL
-
-  # Docker macvlan network configuration (appended by orchestrator)
-  config.vm.provision "shell", inline: <<-SHELL
-    # Install Docker if not present
-    if ! command -v docker &> /dev/null; then
-      apt-get update
-      apt-get install -y apt-transport-https ca-certificates curl gnupg lsb-release
-      curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
-      echo "deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/debian $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
-      apt-get update
-      apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
-      usermod -aG docker vagrant
-    fi
-    
-    # Enable promiscuous mode on eth1 (private network interface)
-    ip link set eth1 promisc on
-    
-    # Get IP and network info from eth1
-    IP_ADDR=$(ip -4 addr show eth1 | grep -oP '(?<=inet\s)\d+(\.\d+){3}')
-    NETWORK=$(ip -4 addr show eth1 | grep -oP '(?<=inet\s)\d+(\.\d+){3}/\d+')
-    
-    # Create macvlan network for containers to appear as physical hosts
-    docker network rm honeypot-macvlan 2>/dev/null || true
-    docker network create -d macvlan \
-      --subnet="${NETWORK}" \
-      --gateway="${IP_ADDR%/*}" \
-      -o parent=eth1 \
-      honeypot-macvlan
-    
-    # Create internal bridge network for container-to-container communication
-    docker network rm honeypot-internal 2>/dev/null || true
-    docker network create --driver bridge honeypot-internal
-    
-    echo "Docker networking configured for macvlan"
-  SHELL
 end

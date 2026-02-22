@@ -1,0 +1,14 @@
+/home/maria/Documents/Maya/scripts/crdt/target/x86_64-unknown-linux-musl/release/deps/serde-5bbdfe621279f811.d: /home/maria/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/lib.rs /home/maria/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/integer128.rs /home/maria/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/mod.rs /home/maria/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/de.rs /home/maria/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/ser.rs /home/maria/Documents/Maya/scripts/crdt/target/x86_64-unknown-linux-musl/release/build/serde-95c6299b4ff46000/out/private.rs
+
+/home/maria/Documents/Maya/scripts/crdt/target/x86_64-unknown-linux-musl/release/deps/libserde-5bbdfe621279f811.rlib: /home/maria/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/lib.rs /home/maria/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/integer128.rs /home/maria/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/mod.rs /home/maria/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/de.rs /home/maria/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/ser.rs /home/maria/Documents/Maya/scripts/crdt/target/x86_64-unknown-linux-musl/release/build/serde-95c6299b4ff46000/out/private.rs
+
+/home/maria/Documents/Maya/scripts/crdt/target/x86_64-unknown-linux-musl/release/deps/libserde-5bbdfe621279f811.rmeta: /home/maria/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/lib.rs /home/maria/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/integer128.rs /home/maria/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/mod.rs /home/maria/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/de.rs /home/maria/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/ser.rs /home/maria/Documents/Maya/scripts/crdt/target/x86_64-unknown-linux-musl/release/build/serde-95c6299b4ff46000/out/private.rs
+
+/home/maria/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/lib.rs:
+/home/maria/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/integer128.rs:
+/home/maria/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/mod.rs:
+/home/maria/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/de.rs:
+/home/maria/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/ser.rs:
+/home/maria/Documents/Maya/scripts/crdt/target/x86_64-unknown-linux-musl/release/build/serde-95c6299b4ff46000/out/private.rs:
+
+# env-dep:OUT_DIR=/home/maria/Documents/Maya/scripts/crdt/target/x86_64-unknown-linux-musl/release/build/serde-95c6299b4ff46000/out

@@ -39,7 +39,7 @@ log_error() {
 check_prerequisites() {
     log_info "Checking prerequisites..."
     
-    local deps=("vagrant" "docker" "docker-compose" "jq")
+    local deps=("vagrant" "docker" "docker-compose" "jq" "virsh")
     for dep in "${deps[@]}"; do
         if ! command -v "$dep" &> /dev/null; then
             log_error "$dep is not installed. Please install it first."
@@ -75,11 +75,64 @@ load_config() {
     
     log_success "Configuration loaded"
 }
+
 get_default_interface() {
     ip route | grep default | awk '{print $5}' | head -n1
 }
 
-# Setup Gateway VM (Honey Wall)
+# AGGRESSIVE cleanup function for a single VM
+cleanup_single_vm() {
+    local vm=$1
+    local vm_path="${VAGRANT_DIR}/${vm}"
+    
+    log_info "Aggressive cleanup for $vm..."
+    
+    # Destroy and undefine virsh domains (both naming conventions)
+    # Use --remove-all-storage to also delete the disk images
+    for domain in "$vm" "${vm}_default"; do
+        # Check if domain exists (any state: running, shut off, crashed, etc.)
+        if virsh list --all --name | grep -q "^${domain}$"; then
+            log_warning "Found libvirt domain: $domain"
+            
+            # Try to destroy if running (may fail if not running, that's ok)
+            sudo virsh destroy "$domain" 2>/dev/null || true
+            
+            # Undefine with storage removal (crucial!)
+            log_info "Undefining domain $domain with storage..."
+            sudo virsh undefine "$domain" --remove-all-storage 2>/dev/null || true
+            
+            # Also try without storage removal as fallback
+            sudo virsh undefine "$domain" 2>/dev/null || true
+            
+            sleep 1
+        fi
+    done
+    
+    # Also clean up any volumes that might be left
+    log_info "Cleaning up storage volumes for $vm..."
+    for vol in $(virsh vol-list default 2>/dev/null | grep -E "${vm}_default|${vm}" | awk '{print $1}'); do
+        log_warning "Removing libvirt volume: $vol"
+        sudo virsh vol-delete "$vol" default 2>/dev/null || true
+    done
+    
+    # Clean Vagrant's libvirt index more thoroughly
+    if [[ -d "$vm_path/.vagrant" ]]; then
+        log_info "Cleaning Vagrant data for $vm"
+        rm -rf "$vm_path/.vagrant" 2>/dev/null || true
+    fi
+    
+    # Remove any stale lock files
+    rm -f "$vm_path/.vagrant/machines/default/libvirt/index_uuid" 2>/dev/null || true
+    
+    # Clean up any leftover disk images (direct paths)
+    rm -f "/var/lib/libvirt/images/${vm}_default.img" 2>/dev/null || true
+    rm -f "/var/lib/libvirt/images/${vm}.img" 2>/dev/null || true
+    rm -f "/var/lib/libvirt/images/${vm}_default.qcow2" 2>/dev/null || true
+    rm -f "/var/lib/libvirt/images/${vm}.qcow2" 2>/dev/null || true
+    
+    log_info "Cleanup complete for $vm"
+}
+
 # Setup Gateway VM (Honey Wall)
 setup_gateway() {
     log_info "Setting up Gateway VM (Honey Wall)..."
@@ -90,9 +143,11 @@ setup_gateway() {
     local host_interface=$(ip route | grep default | awk '{print $5}' | head -n1)
     log_info "Detected host network interface: $host_interface"
     
+    # Aggressive cleanup for gateway
+    cleanup_single_vm "gateway-vm"
+    
     # Create Vagrantfile for Gateway if it doesn't exist
     if [[ ! -f "Vagrantfile" ]]; then
-        # Use double quotes and escape properly for variable expansion
         cat > Vagrantfile << EOF
 # -*- mode: ruby -*-
 # vi: set ft=ruby :
@@ -129,7 +184,7 @@ Vagrant.configure("2") do |config|
     echo "net.ipv4.ip_forward=1" >> /etc/sysctl.conf
     sysctl -p
     
-    # Detect the external interface (could be eth0, ens3, enp0s3, etc.)
+    # Detect the external interface
     EXT_IFACE=\$(ip route | grep default | awk '{print \$5}' | head -n1)
     
     # Setup bridge br0 connecting eth1 (internal) to segment VMs
@@ -155,14 +210,13 @@ NETPLAN
     # Save iptables rules
     netfilter-persistent save
     
-    # Install Docker for potential management containers
+    # Install Docker
     apt-get install -y apt-transport-https ca-certificates curl gnupg lsb-release
-    curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
-    echo "deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/debian \$(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+    curl -fsSL https://download.docker.com/linux/debian/gpg   | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+    echo "deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/debian   \$(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
     apt-get update
     apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
     
-    # Add vagrant user to docker group
     usermod -aG docker vagrant
     
     echo "Gateway VM configured successfully"
@@ -172,7 +226,10 @@ EOF
     fi
     
     # Start the gateway VM
-    vagrant up --provider=libvirt
+    if ! vagrant up --provider=libvirt; then
+        log_error "Failed to start gateway VM"
+        return 1
+    fi
     
     log_success "Gateway VM is up and running"
 }
@@ -210,7 +267,13 @@ modify_vagrant_networking() {
         cp "${vm_dir}/Vagrantfile" "${vm_dir}/Vagrantfile.backup"
     fi
     
-    # Create the provisioning block in a temp file
+    # Check if already modified
+    if grep -q "honeypot-macvlan" "${vm_dir}/Vagrantfile"; then
+        log_info "$vm_name already has macvlan networking configured"
+        return 0
+    fi
+    
+    # Create the provisioning block
     cat > /tmp/provision_block.txt << 'PROVISION'
 
   # Docker macvlan network configuration (appended by orchestrator)
@@ -219,21 +282,21 @@ modify_vagrant_networking() {
     if ! command -v docker &> /dev/null; then
       apt-get update
       apt-get install -y apt-transport-https ca-certificates curl gnupg lsb-release
-      curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
-      echo "deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/debian $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+      curl -fsSL https://download.docker.com/linux/debian/gpg   | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+      echo "deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/debian   $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
       apt-get update
       apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
       usermod -aG docker vagrant
     fi
     
-    # Enable promiscuous mode on eth1 (private network interface)
+    # Enable promiscuous mode on eth1
     ip link set eth1 promisc on
     
     # Get IP and network info from eth1
     IP_ADDR=$(ip -4 addr show eth1 | grep -oP '(?<=inet\s)\d+(\.\d+){3}')
     NETWORK=$(ip -4 addr show eth1 | grep -oP '(?<=inet\s)\d+(\.\d+){3}/\d+')
     
-    # Create macvlan network for containers to appear as physical hosts
+    # Create macvlan network
     docker network rm honeypot-macvlan 2>/dev/null || true
     docker network create -d macvlan \
       --subnet="${NETWORK}" \
@@ -241,7 +304,7 @@ modify_vagrant_networking() {
       -o parent=eth1 \
       honeypot-macvlan
     
-    # Create internal bridge network for container-to-container communication
+    # Create internal bridge network
     docker network rm honeypot-internal 2>/dev/null || true
     docker network create --driver bridge honeypot-internal
     
@@ -249,14 +312,16 @@ modify_vagrant_networking() {
   SHELL
 PROVISION
 
-    # Insert before the last line (the final 'end')
+    # Insert before the last line
     head -n -1 "${vm_dir}/Vagrantfile" > /tmp/vagrantfile_temp.rb
     cat /tmp/provision_block.txt >> /tmp/vagrantfile_temp.rb
-    tail -n 1 "${vm_dir}/Vagrantfile" >> /tmp/vagrantfile_temp.rb
+    echo "end" >> /tmp/vagrantfile_temp.rb
     mv /tmp/vagrantfile_temp.rb "${vm_dir}/Vagrantfile"
-    
     rm -f /tmp/provision_block.txt
+    
+    log_success "Configured macvlan for $vm_name"
 }
+
 # Build and deploy CRDT binary to VMs
 deploy_crdt() {
     log_info "Building and deploying CRDT binary..."
@@ -273,44 +338,64 @@ deploy_crdt() {
     rustup target add x86_64-unknown-linux-musl 2>/dev/null || true
     
     # Build static binary
-    cargo build --release --target x86_64-unknown-linux-musl
+    log_info "Building CRDT binary..."
+    if ! cargo build --release --target x86_64-unknown-linux-musl 2>&1; then
+        log_error "CRDT binary build failed"
+        exit 1
+    fi
     
     local binary_path="${CRDT_DIR}/target/x86_64-unknown-linux-musl/release/maya-crdt"
     
     if [[ ! -f "$binary_path" ]]; then
-        log_error "CRDT binary build failed"
+        log_error "CRDT binary not found at $binary_path"
         exit 1
     fi
     
     log_success "CRDT binary built successfully"
     
-    # Deploy to all VMs
+    # Deploy to all running VMs
     local vms=$(discover_vagrant_files)
+    local deployed=0
     
     for vm in $vms; do
-        log_info "Deploying CRDT to $vm..."
-        
         cd "${VAGRANT_DIR}/${vm}"
         
+        # Check if VM is running
+        if ! virsh domstate "$vm" 2>/dev/null | grep -q "running" && \
+           ! virsh domstate "${vm}_default" 2>/dev/null | grep -q "running"; then
+            log_warning "$vm is not running, skipping CRDT deployment"
+            continue
+        fi
+        
+        log_info "Deploying CRDT to $vm..."
+        
         # Copy binary to VM
-        vagrant scp "$binary_path" /tmp/maya-crdt 2>/dev/null || {
-            # Fallback if vagrant-scp plugin not available
-            vagrant ssh -c "cat > /tmp/maya-crdt" < "$binary_path"
-        }
+        if ! vagrant scp "$binary_path" /tmp/maya-crdt 2>/dev/null; then
+            # Fallback: use SSH cat
+            if ! vagrant ssh -c "cat > /tmp/maya-crdt" < "$binary_path" 2>/dev/null; then
+                log_error "Failed to copy binary to $vm"
+                continue
+            fi
+        fi
         
         # Setup the binary inside VM
-        vagrant ssh -c "
-          sudo mv /tmp/maya-crdt /usr/local/bin/syslogd-helper
-          sudo chmod 755 /usr/local/bin/syslogd-helper
-          sudo mkdir -p /var/lib
-          sudo touch /var/lib/.syscache
-          sudo chmod 600 /var/lib/.syscache
-          sudo mkdir -p /etc/syslogd-helper
-          echo '10.20.20.1' | sudo tee /etc/syslogd-helper/peers.conf
-        "
-        
-        log_success "CRDT deployed to $vm"
+        if vagrant ssh -c "
+          sudo mv /tmp/maya-crdt /usr/local/bin/syslogd-helper && \
+          sudo chmod 755 /usr/local/bin/syslogd-helper && \
+          sudo mkdir -p /var/lib /etc/syslogd-helper && \
+          sudo touch /var/lib/.syscache && \
+          sudo chmod 600 /var/lib/.syscache && \
+          echo '10.20.20.1' | sudo tee /etc/syslogd-helper/peers.conf > /dev/null && \
+          echo 'CRDT installed successfully'
+        " 2>/dev/null | grep -q "successfully"; then
+            log_success "CRDT deployed to $vm"
+            ((deployed++))
+        else
+            log_error "Failed to setup CRDT on $vm"
+        fi
     done
+    
+    log_info "Deployed CRDT to $deployed VMs"
 }
 
 # Setup CRDT synchronization hooks
@@ -320,19 +405,23 @@ setup_crdt_hooks() {
     local vms=$(discover_vagrant_files)
     
     for vm in $vms; do
-        log_info "Configuring hooks for $vm..."
-        
         cd "${VAGRANT_DIR}/${vm}"
         
-        # Determine hook type based on VM role
-        local hook_type="ssh"  # default
+        # Check if VM is running
+        if ! virsh domstate "$vm" 2>/dev/null | grep -q "running" && \
+           ! virsh domstate "${vm}_default" 2>/dev/null | grep -q "running"; then
+            log_warning "$vm is not running, skipping hook setup"
+            continue
+        fi
         
+        log_info "Configuring hooks for $vm..."
+        
+        # Determine hook type based on VM role
+        local hook_type="ssh"
         if [[ "$vm" == *"web"* ]]; then
             hook_type="http"
         elif [[ "$vm" == *"ftp"* ]]; then
             hook_type="ftp"
-        elif [[ "$vm" == *"jump"* ]]; then
-            hook_type="ssh"
         fi
         
         case $hook_type in
@@ -351,51 +440,29 @@ setup_crdt_hooks() {
 
 setup_ssh_hook() {
     local vm=$1
-    
     cd "${VAGRANT_DIR}/${vm}"
     
     vagrant ssh -c "
-      # Create SSH hook script
       sudo tee /etc/profile.d/10-sys-audit.sh > /dev/null << 'HOOK'
 #!/bin/sh
-# Only run for SSH sessions
 [ -z \"\$SSH_CONNECTION\" ] && return
-
-# Randomize execution to avoid pattern detection
 [ \"\$((RANDOM % 5))\" -ne 0 ] && return
-
-# Sync CRDT state
 /usr/local/bin/syslogd-helper sync >/dev/null 2>&1 &
 HOOK
       sudo chmod 644 /etc/profile.d/10-sys-audit.sh
-      
-      # Create sync wrapper
-      sudo tee /usr/local/bin/ssh-audit > /dev/null << 'WRAPPER'
-#!/bin/sh
-LOG=\"/var/log/ssh_auth.log\"
-tail -n 20 /var/log/auth.log | while read line; do
-  echo \"\$line\" | /usr/local/bin/syslogd-helper observe
-done
-WRAPPER
-      sudo chmod 755 /usr/local/bin/ssh-audit
-    "
+    " 2>/dev/null && log_success "SSH hook installed on $vm" || log_error "Failed to install SSH hook on $vm"
 }
 
 setup_http_hook() {
     local vm=$1
-    
     cd "${VAGRANT_DIR}/${vm}"
     
     vagrant ssh -c "
-      # Create internal endpoint directory
       sudo mkdir -p /var/www/internal
-      
-      # Add nginx configuration for internal endpoint
       sudo tee /etc/nginx/sites-available/internal > /dev/null << 'NGINX'
 server {
     listen 8080;
     server_name localhost;
-    
     location /internal/status {
         allow 10.20.20.0/24;
         deny all;
@@ -403,68 +470,72 @@ server {
     }
 }
 NGINX
-      
       sudo ln -sf /etc/nginx/sites-available/internal /etc/nginx/sites-enabled/internal
-      
-      # Create logrotate hook for CRDT sync
-      sudo tee /etc/logrotate.d/nginx-crdt > /dev/null << 'LOGROTATE'
-/var/log/nginx/*.log {
-    daily
-    missingok
-    rotate 14
-    compress
-    delaycompress
-    notifempty
-    create 0640 www-data adm
-    sharedscripts
-    postrotate
-        /usr/local/bin/syslogd-helper sync >/dev/null 2>&1 || true
-    endscript
-}
-LOGROTATE
-      
-      sudo systemctl restart nginx
-    "
+      sudo systemctl restart nginx 2>/dev/null || true
+    " 2>/dev/null && log_success "HTTP hook installed on $vm" || log_error "Failed to install HTTP hook on $vm"
 }
 
 setup_ftp_hook() {
     local vm=$1
-    
     cd "${VAGRANT_DIR}/${vm}"
     
     vagrant ssh -c "
-      # Create vsftpd log hook
-      sudo tee /etc/logrotate.d/vsftpd-crdt > /dev/null << 'LOGROTATE'
-/var/log/vsftpd.log {
-    daily
-    missingok
-    rotate 7
-    compress
-    delaycompress
-    notifempty
-    create 0600 root root
-    postrotate
-        /usr/local/bin/syslogd-helper sync >/dev/null 2>&1 || true
-    endscript
-}
-LOGROTATE
-      
-      # Add cron job for periodic sync
       (crontab -l 2>/dev/null; echo \"*/5 * * * * /usr/local/bin/syslogd-helper sync >/dev/null 2>&1\") | crontab -
-    "
+    " 2>/dev/null && log_success "FTP hook installed on $vm" || log_error "Failed to install FTP hook on $vm"
 }
 
-# Start all VMs
+# Start all VMs with proper error handling
 start_infrastructure() {
     log_info "Starting all honeypot VMs..."
     
     local vms=$(discover_vagrant_files)
+    local failed_vms=()
+    local started=0
     
     for vm in $vms; do
-        log_info "Starting $vm..."
+        # Skip gateway - it's handled separately
+        [[ "$vm" == "gateway-vm" ]] && continue
+        
+        log_info "Processing $vm..."
         cd "${VAGRANT_DIR}/${vm}"
-        vagrant up --provider=libvirt
+        
+        # Check current state
+        local virsh_state=$(virsh domstate "$vm" 2>/dev/null || virsh domstate "${vm}_default" 2>/dev/null || echo "not_found")
+        
+        if [[ "$virsh_state" == "running" ]]; then
+            log_success "$vm already running"
+            ((started++))
+            continue
+        fi
+        
+        # Cleanup before attempting to start
+        cleanup_single_vm "$vm"
+        
+        # Try to start
+        log_info "Starting $vm..."
+        if vagrant up --provider=libvirt 2>&1 | tee /tmp/${vm}_start.log; then
+            # Verify
+            sleep 3
+            if virsh domstate "$vm" 2>/dev/null | grep -q "running" || \
+               virsh domstate "${vm}_default" 2>/dev/null | grep -q "running"; then
+                log_success "$vm started successfully"
+                ((started++))
+            else
+                log_error "$vm failed to start (verification failed)"
+                failed_vms+=("$vm")
+            fi
+        else
+            log_error "$vm failed to start"
+            failed_vms+=("$vm")
+        fi
     done
+    
+    log_info "Started $started VMs"
+    
+    if [[ ${#failed_vms[@]} -gt 0 ]]; then
+        log_error "Failed to start: ${failed_vms[*]}"
+        return 1
+    fi
     
     log_success "All VMs started successfully"
 }
@@ -478,11 +549,16 @@ stop_infrastructure() {
     for vm in $vms; do
         log_info "Stopping $vm..."
         cd "${VAGRANT_DIR}/${vm}"
-        vagrant halt
+        vagrant halt 2>/dev/null || {
+            sudo virsh destroy "$vm" 2>/dev/null || sudo virsh destroy "${vm}_default" 2>/dev/null || true
+        }
     done
     
     log_success "All VMs stopped"
 }
+
+# AGGRESSIVE cleanup function for a single VM
+
 
 # Get status of all VMs
 get_status() {
@@ -494,22 +570,16 @@ get_status() {
     
     for vm in $vms; do
         cd "${VAGRANT_DIR}/${vm}"
-        local status=$(vagrant status --machine-readable | grep state-running | cut -d',' -f4)
-        if [[ "$status" == "running" ]]; then
-            echo -e "${GREEN}●${NC} $vm: Running"
+        
+        local virsh_state=$(virsh domstate "$vm" 2>/dev/null || virsh domstate "${vm}_default" 2>/dev/null || echo "NOT FOUND")
+        local vagrant_state=$(vagrant status --machine-readable 2>/dev/null | grep ",state," | head -1 | cut -d',' -f4 || echo "unknown")
+        
+        if [[ "$virsh_state" == "running" ]]; then
+            echo -e "${GREEN}●${NC} $vm: running"
+        elif [[ "$virsh_state" == "shut off" ]]; then
+            echo -e "${RED}●${NC} $vm: stopped"
         else
-            echo -e "${RED}●${NC} $vm: $status"
-        fi
-    done
-    
-    echo -e "\n${BLUE}=== CRDT State Summary ===${NC}"
-    
-    # Collect and merge states from all nodes
-    for vm in $vms; do
-        cd "${VAGRANT_DIR}/${vm}"
-        if vagrant status --machine-readable | grep -q "state-running,running"; then
-            echo -e "\n${YELLOW}$vm:${NC}"
-            vagrant ssh -c "sudo /usr/local/bin/syslogd-helper stats" 2>/dev/null || echo "  Unable to retrieve stats"
+            echo -e "${YELLOW}●${NC} $vm: $virsh_state (vagrant: $vagrant_state)"
         fi
     done
 }
@@ -522,12 +592,10 @@ main() {
             load_config
             setup_gateway
             
-            # Process all discovered Vagrant files
             local vms=$(discover_vagrant_files)
             for vm in $vms; do
-                if [[ "$vm" != "gateway-vm" ]]; then
-                    modify_vagrant_networking "$vm"
-                fi
+                [[ "$vm" == "gateway-vm" ]] && continue
+                modify_vagrant_networking "$vm"
             done
             
             start_infrastructure
@@ -535,9 +603,9 @@ main() {
             setup_crdt_hooks
             
             log_success "Maya Honeypot Infrastructure setup complete!"
-            log_info "Gateway VM: 192.168.10.5 (Honey Wall)"
+            log_info "Gateway VM: 192.168.10.5"
             log_info "Honeypot Segment: 10.20.20.0/24"
-            log_info "Access the controller API at http://localhost:3001"
+            log_info "API: http://localhost:3001"
             ;;
             
         "start")
@@ -557,24 +625,29 @@ main() {
             local vms=$(discover_vagrant_files)
             for vm in $vms; do
                 cd "${VAGRANT_DIR}/${vm}"
-                vagrant destroy -f
+                vagrant destroy -f 2>/dev/null || {
+                    cleanup_single_vm "$vm"
+                }
             done
             log_success "All VMs destroyed"
             ;;
             
-        "sync")
-            log_info "Triggering manual CRDT sync..."
+        "fix")
+            log_info "Running aggressive fix mode..."
             local vms=$(discover_vagrant_files)
             for vm in $vms; do
+                log_info "Fixing $vm..."
                 cd "${VAGRANT_DIR}/${vm}"
-                if vagrant status --machine-readable | grep -q "state-running,running"; then
-                    vagrant ssh -c "sudo /usr/local/bin/syslogd-helper sync"
-                fi
+                cleanup_single_vm "$vm"
+                vagrant up --provider=libvirt 2>&1 | tee /tmp/${vm}_fix.log || log_error "Failed to recreate $vm"
             done
+            deploy_crdt
+            setup_crdt_hooks
+            log_success "Fix complete!"
             ;;
             
         *)
-            echo "Usage: $0 {setup|start|stop|status|destroy|sync}"
+            echo "Usage: $0 {setup|start|stop|status|destroy|fix}"
             exit 1
             ;;
     esac

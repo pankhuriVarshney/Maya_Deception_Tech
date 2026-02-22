@@ -6,124 +6,160 @@ Vagrant.configure("2") do |config|
   config.vm.box_version = "4.3.12"
   config.vm.hostname = "fake-web-01"
 
-  # Fixed: Changed IP to avoid conflict with fake-jump-01
   config.vm.network "private_network",
     libvirt__network_name: "maya_internal",
     ip: "10.20.20.11"
 
   config.vm.provider :libvirt do |lv|
-    lv.memory = 512
+    lv.memory = 1024
     lv.cpus = 1
   end
 
   config.vm.provision "shell", inline: <<-SHELL
+    set -e
+
+    echo "[+] Updating system..."
     apt update
-    apt install -y nginx openssh-server redis-tools sudo
 
-    # Fake content
-    echo "Corp Internal Web Portal" > /var/www/html/index.html
-  SHELL
+    echo "[+] Installing packages..."
+    apt install -y nginx openssh-server sudo docker.io
 
-  config.vm.provision "shell",
-    path: "../scripts/identity_bootstrap.sh"
+    echo "[+] Creating admin user..."
+    useradd -m -s /bin/bash admin 2>/dev/null || true
+    echo "admin:admin123!" | chpasswd
+    usermod -aG sudo admin
+    usermod -aG docker admin
 
-  # Single Docker provisioning block (removed duplicates)
-  config.vm.provision "shell", inline: <<-SHELL
-    if ! command -v docker &> /dev/null; then
-      apt-get update
-      apt-get install -y apt-transport-https ca-certificates curl gnupg lsb-release
-      curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
-      echo "deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/debian $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
-      apt-get update
-      apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
-      usermod -aG docker vagrant
+    echo "[+] Enabling services..."
+    systemctl enable nginx
+    systemctl enable ssh
+    systemctl enable docker
+    systemctl start nginx
+    systemctl start ssh
+    systemctl start docker
+
+    echo "[+] Creating fake web content..."
+
+    # Create index.html
+    cat > /var/www/html/index.html <<'INNER_HTML'
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Internal Web Portal</title>
+</head>
+<body>
+    <h1>Corp Internal Web Portal</h1>
+    <p>Welcome to the internal company web server.</p>
+    <hr>
+    <h2>Internal Links:</h2>
+    <ul>
+        <li><a href="/docs/">Documentation</a></li>
+        <li><a href="/admin/">Admin Panel</a></li>
+        <li><a href="/git/">Git Repository</a></li>
+    </ul>
+    <hr>
+    <!-- TODO: Remove credentials before production -->
+    <!-- admin:admin123! -->
+    <!-- db: Sup3rS3cr3t! -->
+</body>
+</html>
+INNER_HTML
+
+    # Create fake admin directory and page
+    mkdir -p /var/www/html/admin
+    cat > /var/www/html/admin/index.html <<'INNER_ADMIN'
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Admin Panel</title>
+</head>
+<body>
+    <h1>Admin Panel</h1>
+    <p>Welcome, admin!</p>
+    <hr>
+    <h2>System Status:</h2>
+    <ul>
+        <li>Web Server: Online</li>
+        <li>Database: Connected</li>
+        <li>Cache: Running</li>
+    </ul>
+    <h2>Quick Actions:</h2>
+    <ul>
+        <li><a href="/admin/users">User Management</a></li>
+        <li><a href="/admin/logs">System Logs</a></li>
+        <li><a href="/admin/backup">Backup</a></li>
+    </ul>
+    <!-- Database credentials: webapp:MyDBpass123! -->
+</body>
+</html>
+INNER_ADMIN
+
+    echo "[+] Configuring Docker macvlan..."
+
+    # Wait for Docker to be fully ready
+    echo "Waiting for Docker daemon..."
+    until docker info >/dev/null 2>&1; do
+        sleep 2
+    done
+
+    # Enable promiscuous mode
+    ip link set eth1 promisc on || echo "Warning: Could not set promisc mode"
+
+    # Get network details
+    IP_ADDR=$(ip -4 addr show eth1 | grep -oP '(?<=inet\\s)\\d+(\\.\\d+){3}' | head -1)
+    NETWORK=$(ip -4 addr show eth1 | grep -oP '(?<=inet\\s)\\d+(\\.\\d+){3}/\\d+' | head -1)
+
+    if [ -z "$IP_ADDR" ]; then
+        echo "Warning: Could not detect IP, using default"
+        IP_ADDR="10.20.20.11"
+        NETWORK="10.20.20.0/24"
     fi
-    
-    ip link set eth1 promisc on
-    
-    IP_ADDR=$(ip -4 addr show eth1 | grep -oP '(?<=inet\\s)\\d+(\\.\\d+){3}')
-    NETWORK=$(ip -4 addr show eth1 | grep -oP '(?<=inet\\s)\\d+(\\.\\d+){3}/\\d+')
-    
+
+    # Remove old networks
     docker network rm honeypot-macvlan 2>/dev/null || true
+    docker network rm honeypot-internal 2>/dev/null || true
+
+    # Create macvlan network
     docker network create -d macvlan \
       --subnet="${NETWORK}" \
-      --gateway="${IP_ADDR%/*}" \
+      --gateway="${IP_ADDR}" \
       -o parent=eth1 \
-      honeypot-macvlan
-    
-    docker network rm honeypot-internal 2>/dev/null || true
-    docker network create --driver bridge honeypot-internal
-    
-    echo "Docker networking configured for macvlan"
-  SHELL
+      honeypot-macvlan || echo "Warning: Failed to create macvlan network"
 
-  # Docker macvlan network configuration (appended by orchestrator)
-  config.vm.provision "shell", inline: <<-SHELL
-    # Install Docker if not present
-    if ! command -v docker &> /dev/null; then
-      apt-get update
-      apt-get install -y apt-transport-https ca-certificates curl gnupg lsb-release
-      curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
-      echo "deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/debian $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
-      apt-get update
-      apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
-      usermod -aG docker vagrant
-    fi
-    
-    # Enable promiscuous mode on eth1 (private network interface)
-    ip link set eth1 promisc on
-    
-    # Get IP and network info from eth1
-    IP_ADDR=$(ip -4 addr show eth1 | grep -oP '(?<=inet\s)\d+(\.\d+){3}')
-    NETWORK=$(ip -4 addr show eth1 | grep -oP '(?<=inet\s)\d+(\.\d+){3}/\d+')
-    
-    # Create macvlan network for containers to appear as physical hosts
-    docker network rm honeypot-macvlan 2>/dev/null || true
-    docker network create -d macvlan \
-      --subnet="${NETWORK}" \
-      --gateway="${IP_ADDR%/*}" \
-      -o parent=eth1 \
-      honeypot-macvlan
-    
-    # Create internal bridge network for container-to-container communication
-    docker network rm honeypot-internal 2>/dev/null || true
-    docker network create --driver bridge honeypot-internal
-    
-    echo "Docker networking configured for macvlan"
-  SHELL
+    # Create internal bridge
+    docker network create \
+      --driver bridge \
+      honeypot-internal || echo "Warning: Failed to create internal network"
 
-  # Docker macvlan network configuration (appended by orchestrator)
-  config.vm.provision "shell", inline: <<-SHELL
-    # Install Docker if not present
-    if ! command -v docker &> /dev/null; then
-      apt-get update
-      apt-get install -y apt-transport-https ca-certificates curl gnupg lsb-release
-      curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
-      echo "deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/debian $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
-      apt-get update
-      apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
-      usermod -aG docker vagrant
+    echo "[+] Installing syslogd-helper..."
+    cat > /usr/local/bin/syslogd-helper <<'INNER_SYSLOG'
+#!/bin/bash
+case "$1" in
+  stats)
+    if [ -f /var/lib/.syscache ]; then
+      cat /var/lib/.syscache
+    else
+      echo '{"attackers":{},"stolen_creds":{},"active_sessions":{}}'
     fi
-    
-    # Enable promiscuous mode on eth1 (private network interface)
-    ip link set eth1 promisc on
-    
-    # Get IP and network info from eth1
-    IP_ADDR=$(ip -4 addr show eth1 | grep -oP '(?<=inet\s)\d+(\.\d+){3}')
-    NETWORK=$(ip -4 addr show eth1 | grep -oP '(?<=inet\s)\d+(\.\d+){3}/\d+')
-    
-    # Create macvlan network for containers to appear as physical hosts
-    docker network rm honeypot-macvlan 2>/dev/null || true
-    docker network create -d macvlan \
-      --subnet="${NETWORK}" \
-      --gateway="${IP_ADDR%/*}" \
-      -o parent=eth1 \
-      honeypot-macvlan
-    
-    # Create internal bridge network for container-to-container communication
-    docker network rm honeypot-internal 2>/dev/null || true
-    docker network create --driver bridge honeypot-internal
-    
-    echo "Docker networking configured for macvlan"
+    ;;
+  *)
+    echo "Usage: $0 {stats}"
+    exit 1
+    ;;
+esac
+INNER_SYSLOG
+    chmod +x /usr/local/bin/syslogd-helper
+
+    echo "[+] Running test containers..."
+    # Run a simple nginx container to demonstrate macvlan
+    docker run -d --name web-decoy \
+      --network honeypot-macvlan \
+      --ip="10.20.20.12" \
+      nginx:alpine || echo "Could not start test container"
+
+    echo "[+] Provisioning complete."
+    echo "[+] Web server running at http://10.20.20.11"
+    echo "[+] Admin panel at http://10.20.20.11/admin/"
+    echo "[+] Credentials: admin/admin123!"
   SHELL
 end
