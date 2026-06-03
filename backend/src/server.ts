@@ -7,86 +7,73 @@ import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
 import mongoose from 'mongoose';
 import { createServer } from 'http';
+import cron from 'node-cron';
 
 import { errorHandler } from './middleware/errorHandler';
 import { logger } from './utils/logger';
 import { CRDTSyncService } from './services/CRDTSyncService';
 import { WebSocketHandler } from './websocket/WebSocketHandler';
 import { RealSimulationService } from './services/RealSimulationService';
-import dashboardRoutes from './routes/dashboard';
-import simulationRoutes from './routes/simulation';
-import VMStatus from './models/VMStatus'; 
-import cron from 'node-cron';
-import { MitreSyncService } from './services/MitreSyncService';
-import { SimulationService } from './services/SimulationService';
 import { InfrastructureDiscoveryService } from './services/InfrastructureDiscoveryService';
+import { MitreSyncService } from './services/MitreSyncService';
+import { seedDatabase } from './utils/seedData';
 import dashboardRoutes from './routes/dashboard';
 import simulationRoutes from './routes/simulation';
 import decoyRoutes from './routes/decoy';
+import { Attacker, VMStatus } from './models';
 
 dotenv.config();
 
 const app = express();
 const server = createServer(app);
 
-const PORT = process.env.PORT || 3001;
+const PORT = Number(process.env.PORT || 3001);
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/maya_deception';
+const isSimulationMode = process.env.SIMULATION_MODE === 'true';
+const corsOrigins = process.env.CORS_ORIGINS
+  ? process.env.CORS_ORIGINS.split(',').map(origin => origin.trim()).filter(Boolean)
+  : ['http://localhost:3000', 'http://localhost:5173'];
 
 cron.schedule('0 3 * * *', async () => {
-  console.log('[Scheduler] Starting daily MITRE sync...');
+  logger.info('[Scheduler] Starting daily MITRE sync...');
   const syncService = new MitreSyncService();
   await syncService.sync();
 });
 
-// Security middleware
 app.use(helmet({
   contentSecurityPolicy: false,
   crossOriginEmbedderPolicy: false
 }));
 
 app.use(cors({
-  origin: process.env.CORS_ORIGINS?.split(',') || ['http://localhost:3000', 'http://localhost:5173'],
+  origin: corsOrigins,
   credentials: true
 }));
 
-// Rate limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 1000,
   message: 'Too many requests from this IP',
   standardHeaders: true,
-  legacyHeaders: false,
+  legacyHeaders: false
 });
 app.use(limiter);
 
-// Body parsing and logging
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan('combined', { stream: { write: msg => logger.info(msg.trim()) } }));
 app.use(compression());
 
-// MongoDB Connection
-mongoose.connect(MONGODB_URI)
-  .then(() => logger.info('Connected to MongoDB'))
-  .catch(err => {
-    logger.error('MongoDB connection error:', err);
-    process.exit(1);
-  });
-
-// Initialize services
 const crdtSync = new CRDTSyncService();
 const simulationService = new RealSimulationService();
-const simulationService = new SimulationService();
 const infrastructureDiscovery = new InfrastructureDiscoveryService();
 const wsHandler = new WebSocketHandler(server, crdtSync, simulationService);
 
-// API Routes
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/simulation', simulationRoutes);
 app.use('/api/decoy', decoyRoutes);
 
-// Health check
-app.get('/health', (req, res) => {
+app.get('/health', (_req, res) => {
   res.json({
     status: 'healthy',
     timestamp: new Date().toISOString(),
@@ -96,20 +83,22 @@ app.get('/health', (req, res) => {
   });
 });
 
-// VM Status endpoint with proper error handling
-app.get('/api/vms', async (req, res) => {
+app.get('/api/vms', async (_req, res) => {
   try {
-    logger.info('Fetching VM status from database...');
-    
-    const vms = await VMStatus.find().sort({ vmName: 1 }).lean();
-    
-    logger.info(`Found ${vms.length} VMs in database`);
-
-    if (!vms || vms.length === 0) {
-      logger.warn('No VMs found in database');
+    if (!isSimulationMode) {
+      try {
+        const discovered = await infrastructureDiscovery.discoverVMs();
+        return res.json({
+          vms: discovered,
+          updatedAt: new Date().toISOString(),
+          cached: false
+        });
+      } catch (error) {
+        logger.warn('VM discovery failed, falling back to cached VM status:', error);
+      }
     }
 
-    // Transform to expected format
+    const vms = await VMStatus.find().sort({ vmName: 1 }).lean();
     const formattedVMs = vms.map(vm => ({
       name: vm.vmName,
       status: vm.status,
@@ -118,54 +107,35 @@ app.get('/api/vms', async (req, res) => {
       crdtState: vm.crdtState,
       dockerContainers: vm.dockerContainers || []
     }));
-// Root endpoint
-app.get('/', (req, res) => {
-  res.json({
-    name: 'Maya Deception Fabric Dashboard API',
-    version: '1.0.0',
-    endpoints: {
-      dashboard: '/api/dashboard',
-      decoy: '/api/decoy',
-      health: '/health',
-      websocket: 'ws://localhost:' + PORT + '/ws'
-    }
-  });
-});
-
-app.get('/api/vms', async (req, res) => {
-  try {
-    const discovered = await infrastructureDiscovery.discoverVMs();
 
     res.json({
-      vms: discovered,
+      vms: formattedVMs,
       updatedAt: new Date().toISOString(),
-      cached: false
+      cached: true
     });
   } catch (error) {
-    logger.error('Failed to discover VM status:', error);
+    logger.error('Failed to fetch VM status:', error);
     res.status(500).json({
       vms: [],
       updatedAt: new Date().toISOString(),
-      cached: false,
-      error: 'Infrastructure discovery error',
+      cached: true,
+      error: 'VM status error',
       details: error instanceof Error ? error.message : 'Unknown error'
     });
   }
 });
 
-// Attacker summary endpoint (for dashboard)
-app.get('/api/attackers/summary', async (req, res) => {
+app.get('/api/attackers/summary', async (_req, res) => {
   try {
-    const { Attacker } = require('../src/models');
     const attackers = await Attacker.find().sort({ lastSeen: -1 }).limit(100).lean();
-    
-    const summary = {
+
+    res.json({
       total: attackers.length,
-      critical: attackers.filter((a: any) => a.riskLevel === 'Critical').length,
-      high: attackers.filter((a: any) => a.riskLevel === 'High').length,
-      medium: attackers.filter((a: any) => a.riskLevel === 'Medium').length,
-      low: attackers.filter((a: any) => a.riskLevel === 'Low').length,
-      attackers: attackers.map((a: any) => ({
+      critical: attackers.filter(a => a.riskLevel === 'Critical').length,
+      high: attackers.filter(a => a.riskLevel === 'High').length,
+      medium: attackers.filter(a => a.riskLevel === 'Medium').length,
+      low: attackers.filter(a => a.riskLevel === 'Low').length,
+      attackers: attackers.map(a => ({
         id: a.attackerId,
         ip: a.ipAddress,
         riskLevel: a.riskLevel,
@@ -174,17 +144,14 @@ app.get('/api/attackers/summary', async (req, res) => {
         dwellTime: a.dwellTime,
         status: a.status
       }))
-    };
-    
-    res.json(summary);
+    });
   } catch (error) {
     logger.error('Failed to fetch attacker summary:', error);
     res.status(500).json({ error: 'Failed to fetch attacker data' });
   }
 });
 
-// Root endpoint
-app.get('/', (req, res) => {
+app.get('/', (_req, res) => {
   res.json({
     name: 'Maya Deception Fabric Dashboard API',
     version: '1.0.0',
@@ -193,40 +160,46 @@ app.get('/', (req, res) => {
       vms: '/api/vms',
       attackers: '/api/attackers/summary',
       health: '/health',
-      websocket: 'ws://localhost:' + PORT + '/ws'
+      websocket: `ws://localhost:${PORT}/ws`
     }
   });
 });
 
-// Error handling
 app.use(errorHandler);
 
-// Start server
-server.listen(PORT, () => {
-  logger.info(`🚀 Maya Dashboard API running on http://localhost:${PORT}`);
-  logger.info(`📊 WebSocket endpoint: ws://localhost:${PORT}/ws`);
-  
-  // Start CRDT sync loop
-  const syncInterval = parseInt(process.env.CRDT_SYNC_INTERVAL || '10000');
-  crdtSync.startSyncLoop(syncInterval);
-});
+async function start() {
+  try {
+    await mongoose.connect(MONGODB_URI);
+    logger.info('Connected to MongoDB');
 
-// Graceful shutdown with timeout
+    if (isSimulationMode) {
+      await seedDatabase();
+    }
+
+    server.listen(PORT, () => {
+      logger.info(`Maya Dashboard API running on http://localhost:${PORT}`);
+      logger.info(`WebSocket endpoint: ws://localhost:${PORT}/ws`);
+
+      const syncInterval = parseInt(process.env.CRDT_SYNC_INTERVAL || '10000', 10);
+      crdtSync.startSyncLoop(syncInterval);
+    });
+  } catch (error) {
+    logger.error('Failed to start server:', error);
+    process.exit(1);
+  }
+}
+
 const gracefulShutdown = async (signal: string) => {
   logger.info(`${signal} received, shutting down gracefully`);
-  
-  // Stop accepting new requests
+  crdtSync.stopSyncLoop();
+
   server.close(async () => {
     logger.info('HTTP server closed');
-    
-    // Stop sync loops
-    crdtSync.stopSyncLoop();
-    
-    // Close MongoDB connection with timeout
+
     try {
       await Promise.race([
         mongoose.connection.close(),
-        new Promise((_, reject) => 
+        new Promise((_, reject) =>
           setTimeout(() => reject(new Error('MongoDB close timeout')), 5000)
         )
       ]);
@@ -237,8 +210,7 @@ const gracefulShutdown = async (signal: string) => {
       process.exit(1);
     }
   });
-  
-  // Force exit after 10 seconds
+
   setTimeout(() => {
     logger.error('Could not close connections in time, forcefully exiting');
     process.exit(1);
@@ -247,18 +219,5 @@ const gracefulShutdown = async (signal: string) => {
 
 process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 process.on('SIGINT', () => gracefulShutdown('SIGINT'));
-  process.on('SIGINT', () => {
-    logger.info('SIGINT received, shutting down gracefully');
-    crdtSync.stopSyncLoop();
-    server.close(() => {
-      mongoose.connection.close()
-        .then(() => {
-          logger.info('Server closed');
-          process.exit(0);
-        })
-        .catch((err) => {
-          logger.error('Error closing MongoDB connection:', err);
-          process.exit(1);
-        });
-    });
-  });
+
+void start();

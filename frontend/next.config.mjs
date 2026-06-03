@@ -1,18 +1,21 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  output: 'standalone',
   async rewrites() {
+    const serverApiUrl = 'http://backend:3001';
+
     return [
       {
         source: '/api/:path*',
-        destination: 'http://localhost:3001/api/:path*',
+        destination: `${serverApiUrl}/api/:path*`,
       },
       {
         source: '/health',
-        destination: 'http://localhost:3001/health',
+        destination: `${serverApiUrl}/health`,
       },
       {
         source: '/ws',
-        destination: 'http://localhost:3001/ws',
+        destination: `${serverApiUrl}/ws`,
       },
     ];
   },

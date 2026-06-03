@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://backend:3001';
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<Record<string, string | string[]>> }
@@ -10,7 +12,7 @@ export async function GET(
   const searchParams = request.nextUrl.searchParams.toString();
   const query = searchParams ? `?${searchParams}` : '';
 
-  const backendUrl = `http://localhost:3001/api/${pathString}${query}`;
+  const backendUrl = `${API_URL}/api/${pathString}${query}`;
 
   try {
     const response = await fetch(backendUrl, {
@@ -39,7 +41,7 @@ export async function POST(
   const pathString = path.join('/');
   const body = await request.json();
 
-  const backendUrl = `http://localhost:3001/api/${pathString}`;
+  const backendUrl = `${API_URL}/api/${pathString}`;
 
   try {
     const response = await fetch(backendUrl, {

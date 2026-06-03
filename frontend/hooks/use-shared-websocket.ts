@@ -10,6 +10,8 @@ type WebSocketMessage = {
 
 type MessageHandler = (msg: WebSocketMessage) => void;
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://backend:3001';
+
 class WebSocketManager {
   private static instance: WebSocketManager;
   private ws: WebSocket | null = null;
@@ -33,7 +35,7 @@ class WebSocketManager {
     console.log('Shared WebSocket connecting...');
 
     try {
-      this.ws = new WebSocket('ws://localhost:3001/ws');
+      this.ws = new WebSocket(`${API_URL.replace(/^http/, 'ws')}/ws`);
 
       this.ws.onopen = () => {
         console.log('Shared WebSocket connected');

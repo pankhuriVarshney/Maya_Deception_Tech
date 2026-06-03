@@ -189,7 +189,7 @@ const INDUSTRY_ALIASES: Record<string, string> = {
 };
 
 export class DecoyGenerationService {
-  private readonly vagrantDirPromise: Promise<string>;
+  private readonly vagrantDirPromise: Promise<string | null>;
   private readonly vmOperationLocks: Map<string, Promise<void>> = new Map();
 
   constructor() {
@@ -368,6 +368,17 @@ export class DecoyGenerationService {
 
     return this.withVmOperationLock(requestedVmName, async () => {
       const vagrantDir = await this.vagrantDirPromise;
+      if (!vagrantDir) {
+        logger.warn('Skipping Vagrant operation — simulation mode or directory not found');
+        return {
+          vmName: requestedVmName,
+          templateVmName: this.sanitizeVmName(options.templateVmName || 'fake-web-01'),
+          vmPath: '',
+          ipAddress: '',
+          created: false
+        };
+      }
+
       const templateVmName = this.sanitizeVmName(options.templateVmName || 'fake-web-01');
       const templatePath = path.join(vagrantDir, templateVmName);
       const targetVmPath = path.join(vagrantDir, requestedVmName);
@@ -1207,7 +1218,11 @@ export class DecoyGenerationService {
     return match[0];
   }
 
-  private async resolveVagrantDir(): Promise<string> {
+  private async resolveVagrantDir(): Promise<string | null> {
+    if (process.env.SIMULATION_MODE === 'true') {
+      return null;
+    }
+
     const candidates = [
       process.env.VAGRANT_DIR ? path.resolve(process.env.VAGRANT_DIR) : undefined,
       path.resolve(process.cwd(), '../simulations/fake'),
@@ -1224,7 +1239,7 @@ export class DecoyGenerationService {
       }
     }
 
-    throw new Error('Unable to resolve Vagrant fake VM directory');
+    return null;
   }
 
   private async safeStat(targetPath: string): Promise<Awaited<ReturnType<typeof fs.stat>> | null> {
@@ -1589,6 +1604,11 @@ export class DecoyGenerationService {
 
   private async probeVmReadiness(vmName: string): Promise<void> {
     const vagrantDir = await this.vagrantDirPromise;
+    if (!vagrantDir) {
+      logger.warn('Skipping Vagrant operation — simulation mode or directory not found');
+      return;
+    }
+
     const vmPath = path.join(vagrantDir, vmName);
     const readinessCmd = [
       `cd ${this.shellQuote(vmPath)}`,
@@ -1605,6 +1625,11 @@ export class DecoyGenerationService {
 
   private async executeOnVm(vmName: string, command: string, options: VmCommandOptions = {}): Promise<void> {
     const vagrantDir = await this.vagrantDirPromise;
+    if (!vagrantDir) {
+      logger.warn('Skipping Vagrant operation — simulation mode or directory not found');
+      return;
+    }
+
     const escapedCommand = this.escapeForDoubleQuotes(command);
     const timeoutSeconds = 25;
     const maxAttempts = Math.max(1, options.maxAttempts ?? 2);
@@ -1741,6 +1766,11 @@ export class DecoyGenerationService {
     const pattern = new RegExp(`^${prefix}-(\\d{1,3})$`);
 
     const vagrantDir = await this.vagrantDirPromise;
+    if (!vagrantDir) {
+      logger.warn('Skipping Vagrant operation — simulation mode or directory not found');
+      return `${prefix}-01`;
+    }
+
     const entries = await fs.readdir(vagrantDir, { withFileTypes: true });
     let highestIndex = 0;
 

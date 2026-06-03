@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { AttackerDetails } from "@/types"
 import { useSharedWebSocket } from "./use-shared-websocket"
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://backend:3001'
+
 type UseAttackerDetailResult = {
   loading: boolean
   data: AttackerDetails | null
@@ -34,7 +36,7 @@ export function useAttackerDetail(
     const abortController = new AbortController()
     abortRef.current = abortController
 
-    const url = `http://localhost:3001/api/dashboard/attacker/${encodeURIComponent(id)}`
+    const url = `${API_URL}/api/dashboard/attacker/${encodeURIComponent(id)}`
 
     try {
       const res = await fetch(url, {

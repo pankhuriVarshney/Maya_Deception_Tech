@@ -1,3 +1,15 @@
+## Quick Start (Docker)
+
+> No Vagrant, no KVM, no Rust required. Runs anywhere Docker is installed.
+
+1. Clone the repo
+2. Copy the env file: `cp .env.example .env`
+3. Start everything: `docker compose up --build`
+4. Open the dashboard: http://localhost:3000
+
+The dashboard loads with simulated attacker data automatically.
+To connect real honeypot VMs, see [Infrastructure Setup](./simulations/README.md).
+
 # Maya — Autonomous Deception Fabric
 
 > **Trap attackers. Study them. Harden your defenses.**

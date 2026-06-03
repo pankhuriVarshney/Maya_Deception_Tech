@@ -18,11 +18,11 @@ export function getMockDashboardData(now = new Date()): DashboardData {
       lastSeenAt: new Date(now.getTime() - 10 * 60 * 1000).toISOString(),
     },
     timeline: [
-      { time: "08:05", label: "Initial Access", detail: "Phishing Email", severity: "medium" },
-      { time: "08:15", label: "Credential Theft", detail: "admin_user", severity: "high" },
-      { time: "08:45", label: "Lateral Movement", detail: "to Decoy Server 2", severity: "critical" },
-      { time: "09:12", label: "Command Executed", detail: "Mimikatz Dump", severity: "high" },
-      { time: "09:40", label: "Data Exfiltration Attempt", severity: "critical" },
+      { eventId: "mock-evt-001", time: "08:05", label: "Initial Access", detail: "Phishing Email", severity: "medium" },
+      { eventId: "mock-evt-002", time: "08:15", label: "Credential Theft", detail: "admin_user", severity: "high" },
+      { eventId: "mock-evt-003", time: "08:45", label: "Lateral Movement", detail: "to Decoy Server 2", severity: "critical" },
+      { eventId: "mock-evt-004", time: "09:12", label: "Command Executed", detail: "Mimikatz Dump", severity: "high" },
+      { eventId: "mock-evt-005", time: "09:40", label: "Data Exfiltration Attempt", severity: "critical" },
     ],
     credentialUsage: {
       credentials: [
@@ -111,4 +111,3 @@ export function getMockDashboardData(now = new Date()): DashboardData {
     ],
   }
 }
-

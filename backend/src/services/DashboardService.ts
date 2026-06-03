@@ -77,8 +77,6 @@ export class DashboardService {
         compromisedHosts,
         blockedAttacks,
         falsePositives
-      }
-        falsePositives: 0
       },
       securityPosture
     };
@@ -175,7 +173,7 @@ export class DashboardService {
       severity: e.severity,
       status: e.status,
       mitreConfidence: e.mitreConfidence,
-      classificationMethod: e.classificationMethod
+      classificationMethod: e.classificationMethod,
       sourceHost: e.sourceHost,
       targetHost: e.targetHost,
       attackerId: e.attackerId,

@@ -107,6 +107,7 @@ function createTimeline(attacker: any): TimelineEvent[] {
   const baseTime = new Date(attacker.firstSeen)
   
   events.push({
+    eventId: `${attacker.attackerId}-initial-access`,
     time: baseTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     label: "Initial Access",
     severity: "high",
@@ -115,6 +116,7 @@ function createTimeline(attacker: any): TimelineEvent[] {
   
   if (attacker.currentPrivilege === "Admin") {
     events.push({
+      eventId: `${attacker.attackerId}-privilege-escalation`,
       time: new Date(baseTime.getTime() + 30 * 60000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       label: "Privilege Escalation",
       severity: "critical",
@@ -123,6 +125,7 @@ function createTimeline(attacker: any): TimelineEvent[] {
   }
   
   events.push({
+    eventId: `${attacker.attackerId}-last-activity`,
     time: new Date(attacker.lastSeen).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     label: "Last Activity",
     severity: "medium",

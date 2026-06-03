@@ -1,12 +1,14 @@
 import type { AttackerDetails, AttackerSummary } from "@/types"
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://backend:3001'
+
 /**
  * Fetch attacker details from the real API
  * This replaces the mock data with live data from MongoDB
  */
 export async function getAttackerDetailsFromApi(attackerId: string): Promise<AttackerDetails | null> {
   try {
-    const res = await fetch(`http://localhost:3001/api/dashboard/attacker/${encodeURIComponent(attackerId)}`, {
+    const res = await fetch(`${API_URL}/api/dashboard/attacker/${encodeURIComponent(attackerId)}`, {
       cache: 'no-store',
       headers: {
         'Accept': 'application/json',
