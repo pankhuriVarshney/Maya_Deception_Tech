@@ -168,6 +168,10 @@ export class WebSocketHandler {
     return await Attacker.find({ status: 'Active' }).sort({ lastSeen: -1 }).limit(20).lean();
   }
 
+  public broadcastMessage(message: unknown) {
+    this.broadcast(message);
+  }
+
   private broadcast(message: any) {
     const messageStr = JSON.stringify(message);
     this.clients.forEach(client => {

@@ -1,12 +1,53 @@
-/Static_Honeypots
-/simulations/maya-crdt/target
-/scripts/vagrant_2.4.1-1_amd64.deb
-.gitignore
-.git/
+# Dependencies
 node_modules/
+.pnp
+.pnp.js
+
+# Build outputs
+dist/
 .next/
+out/
+build/
+
+# Environment files
 .env
-.aider*
-backend/dist/
-backend/logs/
+.env.local
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+logs/
+
+# Runtime data
+pids/
+*.pid
+
+# Docker
+.docker/
+
+# Vagrant
 .vagrant/
+*.box
+simulations/fake/*/.vagrant/
+
+# Rust
+target/
+Cargo.lock
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/settings.json
+.idea/
+*.swp
+*.swo
+
+# Debug artifacts (never commit these)
+*_FIX.md
+*_DEBUG.md
+*_FIXES_SUMMARY.md
+debug-*.sh
+backend/dist/

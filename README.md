@@ -10,6 +10,50 @@
 The dashboard loads with simulated attacker data automatically.
 To connect real honeypot VMs, see [Infrastructure Setup](./simulations/README.md).
 
+## Kubernetes Honeynet
+
+Deploys 7 real honeypot pods as an attacker-facing network using kind.
+
+| Pod | Image | Simulates |
+|-----|-------|-----------|
+| fake-jump-01 | cowrie/cowrie | SSH jump server |
+| fake-web-01 | cowrie + nginx | Web server with decoy portal |
+| fake-web-02 | cowrie + nginx | Secondary web server |
+| fake-ftp-01 | cowrie/cowrie | FTP server |
+| fake-rdp-01 | dtagdevsec/heralding | RDP server |
+| fake-smb-01 | dtagdevsec/dionaea | SMB file server |
+| gateway-vm | haproxy:2.8-alpine | Network gateway + stats breadcrumb |
+
+### Prerequisites
+- Docker (already running for control plane)
+- kind: https://kind.sigs.k8s.io/docs/user/quick-start/#installation
+- kubectl: https://kubernetes.io/docs/tasks/tools/
+
+### Deploy honeynet
+```bash
+chmod +x k8s/deploy.sh
+./k8s/deploy.sh
+```
+
+### Watch CRDT heartbeats live
+```bash
+kubectl logs -n maya-honeynet deployment/fake-jump-01 -c crdt-sync -f
+```
+
+### Tear down
+```bash
+./k8s/teardown.sh
+```
+
+### Architecture
+```
+Attackers → gateway NodePort (localhost:8080)
+         → routed to honeypot pods
+         → CRDT sidecar POSTs state to backend API
+         → backend updates MongoDB + broadcasts WebSocket
+         → dashboard shows live attacker activity
+```
+
 # Maya — Autonomous Deception Fabric
 
 > **Trap attackers. Study them. Harden your defenses.**

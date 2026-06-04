@@ -7,8 +7,8 @@ export function useWebSocket(onMessage?: (data: any) => void) {
   const ws = useRef<WebSocket | null>(null);
 
   useEffect(() => {
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://backend:3001';
-    const wsUrl = `${apiUrl.replace(/^http/, 'ws')}/ws`;
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${protocol}//${window.location.host}/ws`;
     
     ws.current = new WebSocket(wsUrl);
 

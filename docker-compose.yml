@@ -1,3 +1,13 @@
+# ╔══════════════════════════════════════════════════════╗
+# ║           Maya Deception Tech — Two Layer Stack      ║
+# ╠══════════════════════════════════════════════════════╣
+# ║  Layer 1 — Control Plane  : docker compose up        ║
+# ║  Layer 2 — Honeynet (K8s) : ./k8s/deploy.sh          ║
+# ║                                                      ║
+# ║  Honeypot pods POST CRDT heartbeats to:              ║
+# ║  http://host.docker.internal:3001/api/vms/heartbeat  ║
+# ╚══════════════════════════════════════════════════════╝
+
 services:
   mongodb:
     image: mongo:7
@@ -27,6 +37,8 @@ services:
       CRDT_SYNC_INTERVAL: ${CRDT_SYNC_INTERVAL:-10000}
       JWT_SECRET: ${JWT_SECRET:-dev-secret-change-in-production}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+      K8S_MODE: "true"
+      K8S_NAMESPACE: "maya-honeynet"
     depends_on:
       mongodb:
         condition: service_healthy

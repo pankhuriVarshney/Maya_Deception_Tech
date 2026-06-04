@@ -1,0 +1,186 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: decoy-web-content
+  namespace: maya-honeynet
+data:
+  index.html: |
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Meridian Corp Internal Portal</title>
+      <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+          font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+          background: linear-gradient(135deg, #0f1419 0%, #1a2332 50%, #0d1117 100%);
+          color: #c9d1d9;
+          min-height: 100vh;
+        }
+        .header {
+          background: #161b22;
+          border-bottom: 1px solid #30363d;
+          padding: 1rem 2rem;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+        }
+        .header h1 { color: #58a6ff; font-size: 1.4rem; font-weight: 600; }
+        .header .meta { font-size: 0.85rem; color: #8b949e; }
+        nav {
+          background: #21262d;
+          padding: 0.75rem 2rem;
+          display: flex;
+          gap: 1.5rem;
+          border-bottom: 1px solid #30363d;
+        }
+        nav a {
+          color: #8b949e;
+          text-decoration: none;
+          font-size: 0.9rem;
+          padding: 0.25rem 0;
+          border-bottom: 2px solid transparent;
+        }
+        nav a:hover, nav a.active {
+          color: #58a6ff;
+          border-bottom-color: #58a6ff;
+        }
+        .container { max-width: 1100px; margin: 0 auto; padding: 2rem; }
+        .grid { display: grid; grid-template-columns: 1fr 320px; gap: 2rem; }
+        @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+        .card {
+          background: #161b22;
+          border: 1px solid #30363d;
+          border-radius: 8px;
+          padding: 1.5rem;
+          margin-bottom: 1.5rem;
+        }
+        .card h2 {
+          color: #f0f6fc;
+          font-size: 1.1rem;
+          margin-bottom: 1rem;
+          padding-bottom: 0.5rem;
+          border-bottom: 1px solid #30363d;
+        }
+        .login-form label { display: block; margin-bottom: 0.35rem; font-size: 0.85rem; color: #8b949e; }
+        .login-form input {
+          width: 100%;
+          padding: 0.6rem 0.75rem;
+          margin-bottom: 1rem;
+          background: #0d1117;
+          border: 1px solid #30363d;
+          border-radius: 6px;
+          color: #c9d1d9;
+          font-size: 0.95rem;
+        }
+        .login-form button {
+          width: 100%;
+          padding: 0.65rem;
+          background: #238636;
+          border: none;
+          border-radius: 6px;
+          color: #fff;
+          font-weight: 600;
+          cursor: pointer;
+        }
+        .login-form button:hover { background: #2ea043; }
+        .directory table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+        .directory th, .directory td {
+          text-align: left;
+          padding: 0.6rem 0.5rem;
+          border-bottom: 1px solid #21262d;
+        }
+        .directory th { color: #8b949e; font-weight: 500; }
+        .directory a { color: #58a6ff; text-decoration: none; }
+        .notice {
+          background: #1c2128;
+          border-left: 3px solid #d29922;
+          padding: 0.75rem 1rem;
+          font-size: 0.85rem;
+          color: #e3b341;
+          margin-top: 1rem;
+        }
+        footer {
+          text-align: center;
+          padding: 2rem;
+          font-size: 0.75rem;
+          color: #484f58;
+        }
+      </style>
+    </head>
+    <body>
+      <header class="header">
+        <h1>Meridian Corp Internal Portal</h1>
+        <div class="meta">Last login: June 2, 2026 at 09:14 AM (EST) &mdash; Workstation: MRD-WS-4421</div>
+      </header>
+      <nav>
+        <a href="/" class="active">Dashboard</a>
+        <a href="/hr">HR Portal</a>
+        <a href="/it">IT Helpdesk</a>
+        <a href="/finance">Finance</a>
+        <a href="/vpn">VPN Access</a>
+      </nav>
+      <div class="container">
+        <div class="grid">
+          <main>
+            <div class="card">
+              <h2>Welcome back</h2>
+              <p style="margin-bottom: 1rem; line-height: 1.6;">
+                Access internal resources, submit tickets, and review company announcements.
+                For urgent IT issues, contact the helpdesk extension <strong>x2200</strong>.
+              </p>
+              <div class="notice">
+                Scheduled maintenance: VPN gateway firmware update tonight 02:00&ndash;04:00 EST.
+              </div>
+            </div>
+            <div class="card directory">
+              <h2>Employee Directory</h2>
+              <table>
+                <thead>
+                  <tr><th>Name</th><th>Department</th><th>Email</th></tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>Sarah Chen</td>
+                    <td>Engineering</td>
+                    <td><a href="mailto:s.chen@meridian.internal">s.chen@meridian.internal</a></td>
+                  </tr>
+                  <tr>
+                    <td>James Okonkwo</td>
+                    <td>Finance</td>
+                    <td><a href="mailto:j.okonkwo@meridian.internal">j.okonkwo@meridian.internal</a></td>
+                  </tr>
+                  <tr>
+                    <td>Priya Sharma</td>
+                    <td>HR</td>
+                    <td><a href="mailto:p.sharma@meridian.internal">p.sharma@meridian.internal</a></td>
+                  </tr>
+                  <tr>
+                    <td>Marcus Webb</td>
+                    <td>IT Operations</td>
+                    <td><a href="mailto:m.webb@meridian.internal">m.webb@meridian.internal</a></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </main>
+          <aside>
+            <div class="card">
+              <h2>Sign In</h2>
+              <form class="login-form" method="POST" action="/login">
+                <label for="username">Username</label>
+                <input type="text" id="username" name="username" placeholder="domain\\username" autocomplete="username">
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" placeholder="Password" autocomplete="current-password">
+                <button type="submit">Sign In</button>
+              </form>
+            </div>
+          </aside>
+        </div>
+      </div>
+      <!-- TODO: remove admin backdoor /admin?token=superadmin before pushing to prod -->
+      <footer>&copy; 2026 Meridian Corp. Internal use only. Unauthorized access is prohibited.</footer>
+    </body>
+    </html>

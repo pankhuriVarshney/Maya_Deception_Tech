@@ -1,0 +1,123 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fake-ftp-01
+  namespace: maya-honeynet
+  labels:
+    app.kubernetes.io/part-of: maya-deception
+    component: honeypot
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: fake-ftp-01
+  template:
+    metadata:
+      labels:
+        app: fake-ftp-01
+        app.kubernetes.io/part-of: maya-deception
+        component: honeypot
+    spec:
+      containers:
+        - name: cowrie
+          image: cowrie/cowrie:latest
+          ports:
+            - containerPort: 2222
+            - containerPort: 2121
+          envFrom:
+            - configMapRef:
+                name: maya-config
+          env:
+            - name: VM_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: VM_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: COWRIE_LISTEN_ENDPOINTS
+              value: "tcp:2121:interface=0.0.0.0 tcp:2222:interface=0.0.0.0"
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "200m"
+              memory: "256Mi"
+        - name: crdt-sync
+          image: dwdraju/alpine-curl-jq:latest
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              echo "[CRDT] Sidecar starting — VM: $VM_NAME IP: $VM_IP"
+              while true; do
+                PAYLOAD=$(jq -n \
+                  --arg vmName "$VM_NAME" \
+                  --arg vmIp "$VM_IP" \
+                  --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+                  '{
+                    vmName: $vmName,
+                    vmIp: $vmIp,
+                    status: "running",
+                    timestamp: $ts,
+                    crdtStats: {syncs: 1, merges: 0},
+                    dockerContainers: [{name: "cowrie", status: "running"}]
+                  }')
+                curl -s -X POST "$BACKEND_API_URL/api/vms/heartbeat" \
+                  -H "Content-Type: application/json" \
+                  -d "$PAYLOAD" \
+                  --connect-timeout 3 || true
+                sleep "$CRDT_SYNC_INTERVAL"
+              done
+          envFrom:
+            - configMapRef:
+                name: maya-config
+          env:
+            - name: VM_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: VM_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: "10m"
+              memory: "16Mi"
+            limits:
+              cpu: "50m"
+              memory: "32Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: fake-ftp-01
+  namespace: maya-honeynet
+  labels:
+    app.kubernetes.io/part-of: maya-deception
+    component: honeypot
+spec:
+  type: ClusterIP
+  selector:
+    app: fake-ftp-01
+  ports:
+    - name: ftp
+      port: 21
+      targetPort: 2121
+    - name: ssh
+      port: 22
+      targetPort: 2222
