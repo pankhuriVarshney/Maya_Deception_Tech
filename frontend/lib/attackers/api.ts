@@ -64,10 +64,9 @@ export async function getActiveAttackersFromApi(): Promise<AttackerSummary[]> {
 
 /**
  * Format attacker ID for display
- * e.g., "APT-10-20-20-100" -> "APT-10.20.20.100"
+ * e.g., "attacker-10-20-20-100" -> "attacker-10.20.20.100"
  */
 export function formatAttackerId(attackerId: string): string {
-  // Convert APT-10-20-20-100 to APT-10.20.20.100 for display
   const parts = attackerId.split('-')
   if (parts.length > 1 && parts.slice(1).every(p => /^\d+$/.test(p))) {
     return `${parts[0]}-${parts.slice(1).join('.')}`
@@ -77,11 +76,11 @@ export function formatAttackerId(attackerId: string): string {
 
 /**
  * Parse attacker ID to get IP address
- * e.g., "APT-10-20-20-100" -> "10.20.20.100"
+ * e.g., "attacker-10-20-20-100" -> "10.20.20.100"
  */
 export function parseAttackerIp(attackerId: string): string {
   const parts = attackerId.split('-')
-  if (parts.length > 1 && parts[0] === 'APT') {
+  if (parts.length > 1 && (parts[0] === 'attacker' || parts[0] === 'APT')) {
     return parts.slice(1).join('.')
   }
   return attackerId

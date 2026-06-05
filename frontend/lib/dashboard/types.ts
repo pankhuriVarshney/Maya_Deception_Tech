@@ -60,6 +60,7 @@ export type LateralNode = {
 export type LateralEdge = {
   from: string
   to: string
+  label?: string
 }
 
 export type LateralMovementData = {
@@ -126,4 +127,3 @@ export type DashboardResponse = {
   data: DashboardData
   generatedAt: string // ISO string
 }
-

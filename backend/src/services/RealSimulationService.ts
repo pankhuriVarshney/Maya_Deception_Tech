@@ -311,7 +311,7 @@ export class RealSimulationService extends EventEmitter {
     logger.info(`🎯 Starting REAL SSH brute force simulation on ${target}`);
 
     const attackerIp = `10.20.10.${Math.floor(Math.random() * 100) + 100}`;
-    const attackerId = `APT-${attackerIp.replace(/\./g, '-')}`;
+    const attackerId = `attacker-${attackerIp.replace(/\./g, '-')}`;
     let eventsGenerated = 0;
 
     try {
@@ -455,7 +455,7 @@ export class RealSimulationService extends EventEmitter {
     logger.warn(`Using MOCK SSH brute force simulation for ${target}`);
     
     const attackerIp = `10.20.20.${Math.floor(Math.random() * 100) + 100}`;
-    const attackerId = `APT-${attackerIp.replace(/\./g, '-')}`;
+    const attackerId = `attacker-${attackerIp.replace(/\./g, '-')}`;
     
     const attacker = new Attacker({
       attackerId,
@@ -515,7 +515,7 @@ export class RealSimulationService extends EventEmitter {
     logger.info(`🎯 Starting REAL lateral movement simulation: ${source} → [${availableTargets.join(', ')}]`);
 
     const attackerIp = `10.20.20.${Math.floor(Math.random() * 100) + 100}`;
-    const attackerId = `APT-${attackerIp.replace(/\./g, '-')}`;
+    const attackerId = `attacker-${attackerIp.replace(/\./g, '-')}`;
     let eventsGenerated = 0;
 
     try {
@@ -673,7 +673,7 @@ export class RealSimulationService extends EventEmitter {
     logger.info(`🎯 Starting REAL credential theft simulation on ${target}`);
 
     const attackerIp = `10.20.20.${Math.floor(Math.random() * 100) + 100}`;
-    const attackerId = `APT-${attackerIp.replace(/\./g, '-')}`;
+    const attackerId = `attacker-${attackerIp.replace(/\./g, '-')}`;
     let eventsGenerated = 0;
 
     try {
@@ -819,7 +819,7 @@ export class RealSimulationService extends EventEmitter {
     logger.info(`🎯 Starting REAL network discovery simulation from ${source}`);
 
     const attackerIp = `10.20.20.${Math.floor(Math.random() * 100) + 100}`;
-    const attackerId = `APT-${attackerIp.replace(/\./g, '-')}`;
+    const attackerId = `attacker-${attackerIp.replace(/\./g, '-')}`;
     let eventsGenerated = 0;
 
     try {
@@ -914,7 +914,7 @@ export class RealSimulationService extends EventEmitter {
     logger.warn(`Using MOCK discovery simulation for ${source}`);
 
     const attackerIp = `10.20.20.${Math.floor(Math.random() * 100) + 100}`;
-    const attackerId = `APT-${attackerIp.replace(/\./g, '-')}`;
+    const attackerId = `attacker-${attackerIp.replace(/\./g, '-')}`;
 
     const attacker = new Attacker({
       attackerId,
@@ -978,7 +978,7 @@ export class RealSimulationService extends EventEmitter {
     logger.info(`🎯 Starting REAL privilege escalation simulation on ${target}`);
 
     const attackerIp = `10.20.20.${Math.floor(Math.random() * 100) + 100}`;
-    const attackerId = `APT-${attackerIp.replace(/\./g, '-')}`;
+    const attackerId = `attacker-${attackerIp.replace(/\./g, '-')}`;
     let eventsGenerated = 0;
 
     try {
@@ -1123,7 +1123,7 @@ export class RealSimulationService extends EventEmitter {
     logger.warn(`Using MOCK privilege escalation simulation for ${target}`);
 
     const attackerIp = `10.20.20.${Math.floor(Math.random() * 100) + 100}`;
-    const attackerId = `APT-${attackerIp.replace(/\./g, '-')}`;
+    const attackerId = `attacker-${attackerIp.replace(/\./g, '-')}`;
 
     const attacker = new Attacker({
       attackerId,
@@ -1184,7 +1184,7 @@ export class RealSimulationService extends EventEmitter {
     logger.info(`🎯 Starting REAL full attack campaign simulation (complexity: ${complexity})`);
 
     const attackerIp = `10.20.20.${Math.floor(Math.random() * 100) + 100}`;
-    const attackerId = `APT-${attackerIp.replace(/\./g, '-')}`;
+    const attackerId = `attacker-${attackerIp.replace(/\./g, '-')}`;
     let eventsGenerated = 0;
 
     try {
@@ -1442,7 +1442,7 @@ export class RealSimulationService extends EventEmitter {
     logger.warn(`Using MOCK full campaign simulation (complexity: ${complexity})`);
 
     const attackerIp = `10.20.20.${Math.floor(Math.random() * 100) + 100}`;
-    const attackerId = `APT-${attackerIp.replace(/\./g, '-')}`;
+    const attackerId = `attacker-${attackerIp.replace(/\./g, '-')}`;
 
     const attacker = new Attacker({
       attackerId,

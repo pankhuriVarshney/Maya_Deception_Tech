@@ -8,7 +8,7 @@
 2. Frontend: POST /api/simulation/lateral movement
    ↓
 3. Backend: RealSimulationService.simulateLateralMovement()
-   - Creates attacker with unique ID: APT-10-20-20-156
+   - Creates attacker with unique ID: attacker-10-20-20-156
    - Saves to MongoDB: Attacker collection
    - Emits: 'attackerUpdated' event
    ↓
@@ -18,7 +18,7 @@
    - Emits: 'newEvent' via WebSocket
    ↓
 5. Frontend: useAttackerDetail hook detects new attacker
-   - Fetches: GET /api/dashboard/attacker/APT-10-20-20-156
+   - Fetches: GET /api/dashboard/attacker/attacker-10-20-20-156
    ↓
 6. Dashboard displays attacker-specific data:
    - Timeline (all events with this attackerId)
