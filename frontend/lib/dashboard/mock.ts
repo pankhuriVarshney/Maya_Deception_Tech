@@ -12,7 +12,7 @@ export function getMockDashboardData(now = new Date()): DashboardData {
       activeCampaign: '"Shadow Hydra"',
     },
     attacker: {
-      attackerId: "APT-1032",
+      attackerId: "attacker-10-20-20-103",
       entryPoint: "Phishing Email",
       currentPrivilege: "Admin",
       lastSeenAt: new Date(now.getTime() - 10 * 60 * 1000).toISOString(),

@@ -14,13 +14,13 @@ import { logger } from './utils/logger';
 import { CRDTSyncService } from './services/CRDTSyncService';
 import { WebSocketHandler } from './websocket/WebSocketHandler';
 import { RealSimulationService } from './services/RealSimulationService';
-import { InfrastructureDiscoveryService } from './services/InfrastructureDiscoveryService';
 import { MitreSyncService } from './services/MitreSyncService';
 import { seedDatabase } from './utils/seedData';
 import dashboardRoutes from './routes/dashboard';
 import simulationRoutes from './routes/simulation';
 import decoyRoutes from './routes/decoy';
-import { Attacker, VMStatus } from './models';
+import vmRoutes, { setVmRoutesWebSocket } from './routes/vms';
+import { Attacker } from './models';
 
 dotenv.config();
 
@@ -66,12 +66,13 @@ app.use(compression());
 
 const crdtSync = new CRDTSyncService();
 const simulationService = new RealSimulationService();
-const infrastructureDiscovery = new InfrastructureDiscoveryService();
 const wsHandler = new WebSocketHandler(server, crdtSync, simulationService);
+setVmRoutesWebSocket(wsHandler);
 
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/simulation', simulationRoutes);
 app.use('/api/decoy', decoyRoutes);
+app.use('/api/vms', vmRoutes);
 
 app.get('/health', (_req, res) => {
   res.json({
@@ -81,48 +82,6 @@ app.get('/health', (_req, res) => {
     websocketClients: wsHandler.getClientCount(),
     mongodb: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected'
   });
-});
-
-app.get('/api/vms', async (_req, res) => {
-  try {
-    if (!isSimulationMode) {
-      try {
-        const discovered = await infrastructureDiscovery.discoverVMs();
-        return res.json({
-          vms: discovered,
-          updatedAt: new Date().toISOString(),
-          cached: false
-        });
-      } catch (error) {
-        logger.warn('VM discovery failed, falling back to cached VM status:', error);
-      }
-    }
-
-    const vms = await VMStatus.find().sort({ vmName: 1 }).lean();
-    const formattedVMs = vms.map(vm => ({
-      name: vm.vmName,
-      status: vm.status,
-      ip: vm.ip,
-      lastSeen: vm.lastSeen,
-      crdtState: vm.crdtState,
-      dockerContainers: vm.dockerContainers || []
-    }));
-
-    res.json({
-      vms: formattedVMs,
-      updatedAt: new Date().toISOString(),
-      cached: true
-    });
-  } catch (error) {
-    logger.error('Failed to fetch VM status:', error);
-    res.status(500).json({
-      vms: [],
-      updatedAt: new Date().toISOString(),
-      cached: true,
-      error: 'VM status error',
-      details: error instanceof Error ? error.message : 'Unknown error'
-    });
-  }
 });
 
 app.get('/api/attackers/summary', async (_req, res) => {

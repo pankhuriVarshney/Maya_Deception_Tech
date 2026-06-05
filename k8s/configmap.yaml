@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: maya-config
+  namespace: maya-honeynet
+data:
+  BACKEND_API_URL: "http://host.docker.internal:3001"
+  CRDT_SYNC_INTERVAL: "10"
+  SIMULATION_MODE: "true"
+  LOG_LEVEL: "info"

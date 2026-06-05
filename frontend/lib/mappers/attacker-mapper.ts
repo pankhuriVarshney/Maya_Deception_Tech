@@ -3,6 +3,8 @@ import type { DashboardData, Overview, Attacker, TimelineEvent, MitreMatrixData,
 
 // Map backend MongoDB attacker to frontend AttackerSummary
 export function mapToAttackerSummary(dbAttacker: any): AttackerSummary {
+  const dwellTime = resolveDwellTimeMinutes(dbAttacker)
+
   return {
     id: dbAttacker.attackerId,
     ipAddress: dbAttacker.ipAddress,
@@ -12,9 +14,9 @@ export function mapToAttackerSummary(dbAttacker: any): AttackerSummary {
     riskLevel: dbAttacker.riskLevel,
     campaign: dbAttacker.campaign,
     lastSeenAt: dbAttacker.lastSeen,
-    dwellTime: dbAttacker.dwellTime,
+    dwellTime,
     // Calculate engagement level based on dwell time
-    engagementLevel: calculateEngagementLevel(dbAttacker.dwellTime),
+    engagementLevel: calculateEngagementLevel(dwellTime),
     // Calculate concern level based on risk
     concernLevel: dbAttacker.riskLevel,
     // Calculate threat confidence (mock calculation)
@@ -25,6 +27,8 @@ export function mapToAttackerSummary(dbAttacker: any): AttackerSummary {
 
 // Map to AttackerDetails for individual attacker page
 export function mapToAttackerDetails(dbAttacker: any, dashboard: DashboardData | null = null): AttackerDetails {
+  const dwellTime = resolveDwellTimeMinutes(dbAttacker)
+
   return {
     id: dbAttacker.attackerId,
     ipAddress: dbAttacker.ipAddress,
@@ -34,8 +38,8 @@ export function mapToAttackerDetails(dbAttacker: any, dashboard: DashboardData |
     riskLevel: dbAttacker.riskLevel,
     campaign: dbAttacker.campaign,
     lastSeenAt: dbAttacker.lastSeen,
-    dwellTime: dbAttacker.dwellTime,
-    engagementLevel: calculateEngagementLevel(dbAttacker.dwellTime),
+    dwellTime,
+    engagementLevel: calculateEngagementLevel(dwellTime),
     concernLevel: dbAttacker.riskLevel,
     threatConfidence: calculateThreatConfidence(dbAttacker),
     status: dbAttacker.status,
@@ -53,15 +57,26 @@ function calculateEngagementLevel(dwellTime: number): "High" | "Medium" | "Low" 
 
 // Calculate threat confidence percentage
 function calculateThreatConfidence(attacker: any): number {
+  const dwellTime = resolveDwellTimeMinutes(attacker)
   let score = 50
   if (attacker.riskLevel === "Critical") score += 30
   else if (attacker.riskLevel === "High") score += 20
   else if (attacker.riskLevel === "Medium") score += 10
   
   if (attacker.currentPrivilege === "Admin") score += 10
-  if (attacker.dwellTime > 60) score += 10
+  if (dwellTime > 60) score += 10
   
   return Math.min(100, score)
+}
+
+function resolveDwellTimeMinutes(attacker: any): number {
+  const stored = Number(attacker?.dwellTime)
+  if (Number.isFinite(stored) && stored > 0) return Math.floor(stored)
+
+  const startTime = new Date(attacker?.firstSeen || attacker?.createdAt).getTime()
+  if (!Number.isFinite(startTime)) return 0
+
+  return Math.max(0, Math.floor((Date.now() - startTime) / 60000))
 }
 
 // Create mock dashboard data for an attacker
@@ -82,10 +97,12 @@ function createMockDashboard(attacker: any): DashboardData {
 }
 
 function createOverview(attacker: any): Overview {
+  const dwellTime = resolveDwellTimeMinutes(attacker)
+
   return {
     activeAttackers: 2, // You should query this from DB
     deceptionEngagement: attacker.riskLevel === "Critical" ? "High" : "Medium",
-    dwellTimeGained: `${Math.floor(attacker.dwellTime / 60)}h ${attacker.dwellTime % 60}m`,
+    dwellTimeGained: `${Math.floor(dwellTime / 60)}h ${dwellTime % 60}m`,
     realAssetsProtected: 15,
     zeroFalsePositives: true,
     riskLevel: attacker.riskLevel,

@@ -55,18 +55,46 @@ export function LateralMovement({ data, loading }: LateralMovementProps) {
             const from = getNode(edge.from)
             const to = getNode(edge.to)
             if (!from || !to) return null
+            const midX = (from.x + to.x) / 2 + 50
+            const midY = (from.y + to.y) / 2 + 8
             return (
-              <line
-                key={`${edge.from}-${edge.to}`}
-                x1={from.x + 50}
-                y1={from.y + 14}
-                x2={to.x + 50}
-                y2={to.y + 14}
-                stroke="hsl(187, 80%, 48%)"
-                strokeWidth="1.5"
-                strokeOpacity="0.5"
-                markerEnd="url(#arrowhead)"
-              />
+              <g key={`${edge.from}-${edge.to}`}>
+                <line
+                  x1={from.x + 50}
+                  y1={from.y + 14}
+                  x2={to.x + 50}
+                  y2={to.y + 14}
+                  stroke="hsl(187, 80%, 48%)"
+                  strokeWidth="1.5"
+                  strokeOpacity="0.5"
+                  markerEnd="url(#arrowhead)"
+                />
+                {edge.label ? (
+                  <>
+                    <rect
+                      x={midX - 42}
+                      y={midY + 12}
+                      width="84"
+                      height="18"
+                      rx="4"
+                      fill="hsl(222, 30%, 12%)"
+                      stroke="hsl(187, 80%, 34%)"
+                      strokeWidth="0.6"
+                      opacity="0.92"
+                    />
+                    <text
+                      x={midX}
+                      y={midY + 25}
+                      textAnchor="middle"
+                      fill="hsl(187, 80%, 70%)"
+                      fontSize="8"
+                      fontFamily="system-ui"
+                    >
+                      {edge.label.length > 16 ? `${edge.label.slice(0, 15)}...` : edge.label}
+                    </text>
+                  </>
+                ) : null}
+              </g>
             )
           })}
           {data.nodes.map((node) => (

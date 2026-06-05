@@ -1,0 +1,131 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gateway-vm
+  namespace: maya-honeynet
+  labels:
+    app.kubernetes.io/part-of: maya-deception
+    component: honeypot
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gateway-vm
+  template:
+    metadata:
+      labels:
+        app: gateway-vm
+        app.kubernetes.io/part-of: maya-deception
+        component: honeypot
+    spec:
+      volumes:
+        - name: haproxy-cfg
+          configMap:
+            name: haproxy-config
+      containers:
+        - name: haproxy
+          image: haproxy:2.8-alpine
+          ports:
+            - containerPort: 80
+            - containerPort: 8080
+          volumeMounts:
+            - name: haproxy-cfg
+              mountPath: /usr/local/etc/haproxy/haproxy.cfg
+              subPath: haproxy.cfg
+          envFrom:
+            - configMapRef:
+                name: maya-config
+          env:
+            - name: VM_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: VM_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+          securityContext:
+            runAsUser: 0
+            runAsNonRoot: false
+            allowPrivilegeEscalation: true
+            capabilities:
+              drop: []
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "200m"
+              memory: "256Mi"
+        - name: crdt-sync
+          image: dwdraju/alpine-curl-jq:latest
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              echo "[CRDT] Sidecar starting — VM: $VM_NAME IP: $VM_IP"
+              while true; do
+                PAYLOAD=$(jq -n \
+                  --arg vmName "$VM_NAME" \
+                  --arg vmIp "$VM_IP" \
+                  --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+                  '{
+                    vmName: $vmName,
+                    vmIp: $vmIp,
+                    status: "running",
+                    timestamp: $ts,
+                    crdtStats: {syncs: 1, merges: 0},
+                    dockerContainers: [{name: "haproxy", status: "running"}]
+                  }')
+                curl -s -X POST "$BACKEND_API_URL/api/vms/heartbeat" \
+                  -H "Content-Type: application/json" \
+                  -d "$PAYLOAD" \
+                  --connect-timeout 3 || true
+                sleep "$CRDT_SYNC_INTERVAL"
+              done
+          envFrom:
+            - configMapRef:
+                name: maya-config
+          env:
+            - name: VM_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: VM_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: "10m"
+              memory: "16Mi"
+            limits:
+              cpu: "50m"
+              memory: "32Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gateway-vm
+  namespace: maya-honeynet
+  labels:
+    app.kubernetes.io/part-of: maya-deception
+    component: honeypot
+spec:
+  type: NodePort
+  selector:
+    app: gateway-vm
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
+      nodePort: 30080
+    - name: stats
+      port: 8080
+      targetPort: 8080
+      nodePort: 30081

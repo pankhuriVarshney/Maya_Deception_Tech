@@ -14,7 +14,7 @@ type Seed = {
 
 const SEEDS: Seed[] = [
   {
-    id: "APT-1032",
+    id: "attacker-10-20-20-103",
     currentHost: "Decoy Server 2",
     engagementLevel: "High",
     concernLevel: "Critical",
@@ -24,7 +24,7 @@ const SEEDS: Seed[] = [
     currentPrivilege: "Admin",
   },
   {
-    id: "APT-2091",
+    id: "attacker-10-20-20-209",
     currentHost: "Decoy DB",
     engagementLevel: "Medium",
     concernLevel: "Medium",
@@ -34,7 +34,7 @@ const SEEDS: Seed[] = [
     currentPrivilege: "User",
   },
   {
-    id: "APT-7710",
+    id: "attacker-10-20-20-177",
     currentHost: "Decoy AD",
     engagementLevel: "Low",
     concernLevel: "High",
@@ -44,7 +44,7 @@ const SEEDS: Seed[] = [
     currentPrivilege: "Power User",
   },
   {
-    id: "APT-4421",
+    id: "attacker-10-20-20-144",
     currentHost: "Decoy Server 1",
     engagementLevel: "High",
     concernLevel: "High",
@@ -98,4 +98,3 @@ export function getMockAttackerDetails(id: string, now = new Date()): AttackerDe
     generatedAt: now.toISOString(),
   }
 }
-

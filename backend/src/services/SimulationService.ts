@@ -14,7 +14,7 @@ export class SimulationService extends EventEmitter {
   async simulateSSHBruteForce(params: { target: string; attempts?: number }) {
     const { target, attempts = 5 } = params;
     const attackerIp = `10.20.20.${Math.floor(Math.random() * 100) + 100}`;
-    const attackerId = `APT-${attackerIp.replace(/\./g, '-')}`;
+    const attackerId = `attacker-${attackerIp.replace(/\./g, '-')}`;
     
     logger.info(`Starting SSH brute force simulation: ${attackerIp} → ${target}`);
 
@@ -96,7 +96,7 @@ export class SimulationService extends EventEmitter {
   async simulateLateralMovement(params: { source: string; targets: string[] }) {
     const { source, targets } = params;
     const attackerIp = `10.20.20.${Math.floor(Math.random() * 100) + 100}`;
-    const attackerId = `APT-${attackerIp.replace(/\./g, '-')}`;
+    const attackerId = `attacker-${attackerIp.replace(/\./g, '-')}`;
 
     logger.info(`Starting lateral movement simulation: ${source} → [${targets.join(', ')}]`);
 
@@ -180,7 +180,7 @@ export class SimulationService extends EventEmitter {
   async simulateCredentialTheft(params: { target: string; tool?: string }) {
     const { target, tool = 'mimikatz' } = params;
     const attackerIp = `10.20.20.${Math.floor(Math.random() * 100) + 100}`;
-    const attackerId = `APT-${attackerIp.replace(/\./g, '-')}`;
+    const attackerId = `attacker-${attackerIp.replace(/\./g, '-')}`;
 
     logger.info(`Starting credential theft simulation: ${attackerIp} → ${target} (${tool})`);
 
@@ -277,7 +277,7 @@ export class SimulationService extends EventEmitter {
   async simulateDiscovery(params: { source: string; scanType?: string }) {
     const { source, scanType = 'internal' } = params;
     const attackerIp = `10.20.20.${Math.floor(Math.random() * 100) + 100}`;
-    const attackerId = `APT-${attackerIp.replace(/\./g, '-')}`;
+    const attackerId = `attacker-${attackerIp.replace(/\./g, '-')}`;
 
     logger.info(`Starting discovery simulation: ${attackerIp} from ${source}`);
 
@@ -338,7 +338,7 @@ export class SimulationService extends EventEmitter {
   async simulatePrivilegeEscalation(params: { target: string; method?: string }) {
     const { target, method = 'sudo-exploit' } = params;
     const attackerIp = `10.20.20.${Math.floor(Math.random() * 100) + 100}`;
-    const attackerId = `APT-${attackerIp.replace(/\./g, '-')}`;
+    const attackerId = `attacker-${attackerIp.replace(/\./g, '-')}`;
 
     logger.info(`Starting privilege escalation simulation: ${attackerIp} → ${target}`);
 
@@ -417,7 +417,7 @@ export class SimulationService extends EventEmitter {
   async simulateFullCampaign(params: { complexity?: string }) {
     const { complexity = 'advanced' } = params;
     const attackerIp = `10.20.20.${Math.floor(Math.random() * 100) + 100}`;
-    const attackerId = `APT-${attackerIp.replace(/\./g, '-')}`;
+    const attackerId = `attacker-${attackerIp.replace(/\./g, '-')}`;
     
     logger.info(`Starting full campaign simulation: ${attackerIp} (complexity: ${complexity})`);
 

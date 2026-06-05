@@ -57,11 +57,16 @@ export class RealSimulationService extends EventEmitter {
    * Database is used as a secondary source, but we verify actual VM status
    */
   private async discoverVMs() {
-    // Clear cache before rediscovery
     this.vmCache.clear();
     
-    // PRIMARY: Always use vagrant-based discovery for accurate, real-time status
+    // PRIMARY: Try Vagrant-based discovery
     await this.discoverVMsFromVagrant();
+    
+    // FALLBACK: If Vagrant found nothing, use K8s pods from MongoDB
+    if (this.vmCache.size === 0) {
+      logger.info('Vagrant discovery found no VMs, falling back to K8s discovery...');
+      await this.discoverVMsFromK8s();
+    }
     
     logger.info(`VM cache populated with ${this.vmCache.size} VMs`);
   }
@@ -220,6 +225,31 @@ export class RealSimulationService extends EventEmitter {
     logger.info(`VM discovery complete: ${this.vmCache.size} running VMs cached`);
   }
 
+  private async discoverVMsFromK8s() {
+    try {
+      logger.info('Attempting K8s VM discovery from MongoDB vm_status collection...');
+      const runningVMs = await VMStatus.find({ status: 'running' }).lean();
+      
+      if (runningVMs.length === 0) {
+        logger.warn('No running VMs found in vm_status collection');
+        return;
+      }
+
+      for (const vm of runningVMs) {
+        const vmName = vm.vmName as string;
+        const vmIp = (vm.ip as string) || 'unknown';
+        
+        // Store with empty path since K8s pods don't use SSH paths
+        this.vmCache.set(vmName, { path: '', ip: vmIp });
+        logger.info(`K8s VM discovered: ${vmName} (${vmIp})`);
+      }
+
+      logger.info(`K8s discovery complete: ${this.vmCache.size} VMs added to cache`);
+    } catch (error) {
+      logger.error('K8s VM discovery failed:', error);
+    }
+  }
+
   /**
    * Execute command on VM via SSH
    */
@@ -228,6 +258,13 @@ export class RealSimulationService extends EventEmitter {
  */
   private async executeOnVM(vmName: string, command: string): Promise<{ stdout: string; stderr: string }> {
     const vmInfo = this.vmCache.get(vmName);
+    
+    // K8s pods have empty path - skip SSH, just log the command
+    if (!vmInfo || vmInfo.path === '') {
+      logger.info(`[K8s] Simulating command on ${vmName}: ${command}`);
+      return { stdout: `[K8s simulated] ${command}`, stderr: '' };
+    }
+
     if (!vmInfo) {
       throw new Error(`VM ${vmName} not found or not running`);
     }
@@ -274,7 +311,7 @@ export class RealSimulationService extends EventEmitter {
     logger.info(`🎯 Starting REAL SSH brute force simulation on ${target}`);
 
     const attackerIp = `10.20.10.${Math.floor(Math.random() * 100) + 100}`;
-    const attackerId = `APT-${attackerIp.replace(/\./g, '-')}`;
+    const attackerId = `attacker-${attackerIp.replace(/\./g, '-')}`;
     let eventsGenerated = 0;
 
     try {
@@ -418,7 +455,7 @@ export class RealSimulationService extends EventEmitter {
     logger.warn(`Using MOCK SSH brute force simulation for ${target}`);
     
     const attackerIp = `10.20.20.${Math.floor(Math.random() * 100) + 100}`;
-    const attackerId = `APT-${attackerIp.replace(/\./g, '-')}`;
+    const attackerId = `attacker-${attackerIp.replace(/\./g, '-')}`;
     
     const attacker = new Attacker({
       attackerId,
@@ -478,7 +515,7 @@ export class RealSimulationService extends EventEmitter {
     logger.info(`🎯 Starting REAL lateral movement simulation: ${source} → [${availableTargets.join(', ')}]`);
 
     const attackerIp = `10.20.20.${Math.floor(Math.random() * 100) + 100}`;
-    const attackerId = `APT-${attackerIp.replace(/\./g, '-')}`;
+    const attackerId = `attacker-${attackerIp.replace(/\./g, '-')}`;
     let eventsGenerated = 0;
 
     try {
@@ -636,7 +673,7 @@ export class RealSimulationService extends EventEmitter {
     logger.info(`🎯 Starting REAL credential theft simulation on ${target}`);
 
     const attackerIp = `10.20.20.${Math.floor(Math.random() * 100) + 100}`;
-    const attackerId = `APT-${attackerIp.replace(/\./g, '-')}`;
+    const attackerId = `attacker-${attackerIp.replace(/\./g, '-')}`;
     let eventsGenerated = 0;
 
     try {
@@ -782,7 +819,7 @@ export class RealSimulationService extends EventEmitter {
     logger.info(`🎯 Starting REAL network discovery simulation from ${source}`);
 
     const attackerIp = `10.20.20.${Math.floor(Math.random() * 100) + 100}`;
-    const attackerId = `APT-${attackerIp.replace(/\./g, '-')}`;
+    const attackerId = `attacker-${attackerIp.replace(/\./g, '-')}`;
     let eventsGenerated = 0;
 
     try {
@@ -877,7 +914,7 @@ export class RealSimulationService extends EventEmitter {
     logger.warn(`Using MOCK discovery simulation for ${source}`);
 
     const attackerIp = `10.20.20.${Math.floor(Math.random() * 100) + 100}`;
-    const attackerId = `APT-${attackerIp.replace(/\./g, '-')}`;
+    const attackerId = `attacker-${attackerIp.replace(/\./g, '-')}`;
 
     const attacker = new Attacker({
       attackerId,
@@ -941,7 +978,7 @@ export class RealSimulationService extends EventEmitter {
     logger.info(`🎯 Starting REAL privilege escalation simulation on ${target}`);
 
     const attackerIp = `10.20.20.${Math.floor(Math.random() * 100) + 100}`;
-    const attackerId = `APT-${attackerIp.replace(/\./g, '-')}`;
+    const attackerId = `attacker-${attackerIp.replace(/\./g, '-')}`;
     let eventsGenerated = 0;
 
     try {
@@ -1086,7 +1123,7 @@ export class RealSimulationService extends EventEmitter {
     logger.warn(`Using MOCK privilege escalation simulation for ${target}`);
 
     const attackerIp = `10.20.20.${Math.floor(Math.random() * 100) + 100}`;
-    const attackerId = `APT-${attackerIp.replace(/\./g, '-')}`;
+    const attackerId = `attacker-${attackerIp.replace(/\./g, '-')}`;
 
     const attacker = new Attacker({
       attackerId,
@@ -1147,7 +1184,7 @@ export class RealSimulationService extends EventEmitter {
     logger.info(`🎯 Starting REAL full attack campaign simulation (complexity: ${complexity})`);
 
     const attackerIp = `10.20.20.${Math.floor(Math.random() * 100) + 100}`;
-    const attackerId = `APT-${attackerIp.replace(/\./g, '-')}`;
+    const attackerId = `attacker-${attackerIp.replace(/\./g, '-')}`;
     let eventsGenerated = 0;
 
     try {
@@ -1405,7 +1442,7 @@ export class RealSimulationService extends EventEmitter {
     logger.warn(`Using MOCK full campaign simulation (complexity: ${complexity})`);
 
     const attackerIp = `10.20.20.${Math.floor(Math.random() * 100) + 100}`;
-    const attackerId = `APT-${attackerIp.replace(/\./g, '-')}`;
+    const attackerId = `attacker-${attackerIp.replace(/\./g, '-')}`;
 
     const attacker = new Attacker({
       attackerId,

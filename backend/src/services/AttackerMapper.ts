@@ -1,8 +1,9 @@
 import { AttackEvent, Credential, LateralMovement, DecoyHost } from '../models';
 
 export function mapToAttackerSummary(dbAttacker: any): any {
+  const dwellTime = resolveDwellTimeMinutes(dbAttacker);
   // Ensure engagement level is calculated
-  const engagementLevel = calculateEngagementLevel(dbAttacker.dwellTime);
+  const engagementLevel = calculateEngagementLevel(dwellTime);
   
   // Map riskLevel to concernLevel (they're the same concept)
   const concernLevel = dbAttacker.riskLevel;
@@ -23,7 +24,7 @@ export function mapToAttackerSummary(dbAttacker: any): any {
     riskLevel: dbAttacker.riskLevel || 'Medium',
     campaign: dbAttacker.campaign || 'Unknown',
     lastSeenAt: dbAttacker.lastSeen || new Date().toISOString(),
-    dwellTime: dbAttacker.dwellTime || 0,
+    dwellTime,
     
     // Calculated fields
     engagementLevel: engagementLevel,
@@ -40,17 +41,19 @@ function calculateEngagementLevel(dwellTime: number): string {
 }
 
 function calculateThreatConfidence(attacker: any): number {
+  const dwellTime = resolveDwellTimeMinutes(attacker);
   let score = 50;
   if (attacker.riskLevel === "Critical") score += 30;
   else if (attacker.riskLevel === "High") score += 20;
   else if (attacker.riskLevel === "Medium") score += 10;
   if (attacker.currentPrivilege === "Admin" || attacker.currentPrivilege === "root") score += 10;
-  if (attacker.dwellTime > 60) score += 10;
+  if (dwellTime > 60) score += 10;
   return Math.min(100, Math.max(0, score));
 }
 
 export async function mapToDashboardData(dbAttacker: any): Promise<any> {
   const attackerId = dbAttacker.attackerId;
+  const dwellTime = resolveDwellTimeMinutes(dbAttacker);
   
   // Query REAL data from MongoDB
   const [
@@ -63,7 +66,7 @@ export async function mapToDashboardData(dbAttacker: any): Promise<any> {
   ] = await Promise.all([
     AttackEvent.find({ attackerId }).sort({ timestamp: -1 }).limit(10).lean(),
     Credential.find({ attackerId }).sort({ timestamp: -1 }).limit(5).lean(),
-    LateralMovement.find({ attackerId }).sort({ timestamp: -1 }).limit(5).lean(),
+    LateralMovement.find({ attackerId }).sort({ timestamp: 1 }).limit(5).lean(),
     DecoyHost.find({ attackerIds: attackerId }).lean(),
 
     // Real production assets
@@ -79,7 +82,7 @@ export async function mapToDashboardData(dbAttacker: any): Promise<any> {
     overview: {
       activeAttackers,
       deceptionEngagement: calculateEngagement(dbAttacker, events),
-      dwellTimeGained: formatDwellTime(dbAttacker.dwellTime),
+      dwellTimeGained: formatDwellTime(dwellTime),
       realAssetsProtected: realAssetsCount,
       zeroFalsePositives: events.some((e: any) => e.status === 'False Positive') === false,
       riskLevel: dbAttacker.riskLevel,
@@ -99,7 +102,7 @@ export async function mapToDashboardData(dbAttacker: any): Promise<any> {
       detail: e.description,
     })) : createDefaultTimeline(dbAttacker),
     mitre: generateMitreFromEvents(events),
-    lateralMovement: generateMovementFromData(movements, decoys),
+    lateralMovement: generateMovementFromData(movements, dbAttacker),
     commandActivity: events
       .filter((e: any) => e.type === 'Command Execution' || e.command)
       .map((e: any) => ({ 
@@ -143,9 +146,24 @@ function calculateEngagement(attacker: any, events: any[]): string {
 }
 
 function formatDwellTime(minutes: number): string {
-  const hours = Math.floor(minutes / 60);
-  const mins = minutes % 60;
+  const safeMinutes = Math.max(0, Math.floor(minutes || 0));
+  const hours = Math.floor(safeMinutes / 60);
+  const mins = safeMinutes % 60;
   return `${hours}h ${mins}m`;
+}
+
+function resolveDwellTimeMinutes(attacker: any): number {
+  const stored = Number(attacker?.dwellTime);
+  if (Number.isFinite(stored) && stored > 0) {
+    return Math.floor(stored);
+  }
+
+  const startTime = new Date(attacker?.firstSeen || attacker?.createdAt).getTime();
+  if (!Number.isFinite(startTime)) {
+    return 0;
+  }
+
+  return Math.max(0, Math.floor((Date.now() - startTime) / 60000));
 }
 
 function mapSeverity(severity: string): string {
@@ -266,28 +284,57 @@ function generateMitreFromEvents(events: any[]): any {
   };
 }
 
-function generateMovementFromData(movements: any[], decoys: any[]): any {
+function generateMovementFromData(movements: any[], attacker: any): any {
+  const attackerIp = attacker?.ipAddress || attacker?.attackerId || "Unknown Attacker";
+  const entryPoint = attacker?.entryPoint || attacker?.currentHost || "Unknown Host";
+
   if (movements.length === 0) {
     return {
       nodes: [
-        { id: "entry", label: "Entry Point", x: 50, y: 20 },
-        { id: "target", label: "Target", x: 180, y: 20 },
+        { id: "attacker", label: attackerIp, x: 50, y: 20 },
+        { id: "entry", label: entryPoint, x: 180, y: 20 },
       ],
-      edges: [{ from: "entry", to: "target" }],
+      edges: [{ from: "attacker", to: "entry", label: "Initial Access" }],
     };
   }
 
-  const nodes = movements.map((m: any, idx: number) => ({
+  const path: string[] = [attackerIp];
+
+  for (const movement of movements) {
+    const source = movement.sourceHost || entryPoint;
+    const target = movement.targetHost;
+
+    if (path.length === 1) {
+      path.push(source);
+    } else if (path[path.length - 1] !== source && !path.includes(source)) {
+      path.push(source);
+    }
+
+    if (target && path[path.length - 1] !== target) {
+      path.push(target);
+    }
+  }
+
+  if (path.length === 1) {
+    path.push(entryPoint);
+  }
+
+  const step = path.length > 1 ? 280 / (path.length - 1) : 0;
+  const nodes = path.map((label, idx) => ({
     id: `node-${idx}`,
-    label: m.targetHost,
-    x: 50 + (idx * 130),
+    label,
+    x: 30 + (idx * step),
     y: 20,
   }));
 
-  const edges = movements.map((m: any, idx: number) => ({
-    from: idx === 0 ? "entry" : `node-${idx-1}`,
-    to: `node-${idx}`,
-  }));
+  const edges = path.slice(1).map((_, idx) => {
+    const movement = idx === 0 ? null : movements[idx - 1];
+    return {
+      from: `node-${idx}`,
+      to: `node-${idx + 1}`,
+      label: movement?.credentialsUsed || movement?.method || "Initial Access",
+    };
+  });
 
   return { nodes, edges };
 }

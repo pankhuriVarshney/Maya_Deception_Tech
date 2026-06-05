@@ -124,7 +124,7 @@ export class DashboardService {
       campaign: attacker.campaign,
       firstSeen: attacker.firstSeen,
       lastSeen: attacker.lastSeen,
-      dwellTime: this.formatDwellTime(attacker.dwellTime),
+      dwellTime: this.formatDwellTime(this.resolveDwellTimeMinutes(attacker)),
       status: attacker.status,
       geolocation: attacker.geolocation,
       fingerprint: attacker.fingerprint,
@@ -740,9 +740,24 @@ export class DashboardService {
   }
 
   private formatDwellTime(minutes: number): string {
-    const hours = Math.floor(minutes / 60);
-    const mins = Math.round(minutes % 60);
+    const safeMinutes = Math.max(0, Math.floor(minutes || 0));
+    const hours = Math.floor(safeMinutes / 60);
+    const mins = safeMinutes % 60;
     return `${hours}h ${mins}m`;
+  }
+
+  private resolveDwellTimeMinutes(attacker: any): number {
+    const stored = Number(attacker?.dwellTime);
+    if (Number.isFinite(stored) && stored > 0) {
+      return Math.floor(stored);
+    }
+
+    const startTime = new Date(attacker?.firstSeen || attacker?.createdAt).getTime();
+    if (!Number.isFinite(startTime)) {
+      return 0;
+    }
+
+    return Math.max(0, Math.floor((Date.now() - startTime) / 60000));
   }
 
   private mapStageFromType(type: string, description: string): string {
