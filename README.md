@@ -1,306 +1,325 @@
-## Quick Start (Docker)
+# Maya - Autonomous Deception Fabric
 
-> No Vagrant, no KVM, no Rust required. Runs anywhere Docker is installed.
+> Trap attackers. Study them. Harden your defenses.
 
-1. Clone the repo
-2. Copy the env file: `cp .env.example .env`
-3. Start everything: `docker compose up --build`
-4. Open the dashboard: http://localhost:3000
+![Kubernetes](https://img.shields.io/badge/kubernetes-326CE5?style=flat&logo=kubernetes&logoColor=white)
+![Node.js](https://img.shields.io/badge/node.js-339933?style=flat&logo=nodedotjs&logoColor=white)
+![Rust](https://img.shields.io/badge/rust-000000?style=flat&logo=rust&logoColor=white)
+![MongoDB](https://img.shields.io/badge/mongodb-47A248?style=flat&logo=mongodb&logoColor=white)
+![MITRE ATT&CK](https://img.shields.io/badge/MITRE-ATT%26CK-red?style=flat)
+![IEEE](https://img.shields.io/badge/IEEE-SA%20Hackathon%202026-blue?style=flat)
 
-The dashboard loads with simulated attacker data automatically.
-To connect real honeypot VMs, see [Infrastructure Setup](./simulations/README.md).
+Maya is an enterprise cybersecurity deception platform that deploys autonomous honeypot networks which mirror real infrastructure. When an attacker follows planted breadcrumbs, they enter a parallel fake environment where activity is tracked, fingerprinted, synchronized across nodes, mapped to MITRE ATT&CK, and streamed to a live SOC dashboard.
+
+![Maya demo](docs/maya-demo.gif)
+
+## What Maya Does
+
+Traditional defenses wait for attackers to hit real systems. Maya uses deception as detection.
+
+- Deploys a parallel fake network with SSH, web, FTP, RDP, and SMB decoys.
+- Plants believable fake credentials, files, keys, and internal portals as breadcrumbs.
+- Tracks attacker state across distributed nodes with Rust CRDT synchronization.
+- Uses an RL adaptive engine to change the environment based on attacker behavior.
+- Maps activity to MITRE ATT&CK techniques for structured threat intelligence.
+- Streams infrastructure, attacker, CRDT, and RL data to a Next.js dashboard in real time.
+
+The result: defenders are not only detecting attackers, they are studying how attackers move.
+
+## Screenshots
+
+### Dashboard Overview
+
+![Dashboard overview](docs/dashboard-overview.png)
+
+### Architecture
+
+![Architecture](docs/Architecture.png)
+
+### Live Actuation Artifacts
+
+![Actuation artifacts](docs/actuation-artifacts.png)
+
+### Attacker Profile
+
+![Attacker profile](docs/attacker-profile.png)
+
+## Architecture
+
+Maya runs as a two-layer stack:
+
+```text
+Layer 1 - Control Plane : docker compose up
+Layer 2 - Honeynet      : ./k8s/deploy.sh
+```
+
+```text
+                     Internet
+                         |
+                    [ Attacker ]
+                         |
+                  [ gateway-vm ]
+                   HAProxy 2.8
+                         |
+        +----------------+----------------+
+        |                |                |
+   fake-jump-01     fake-web-01      fake-ftp-01
+   Cowrie SSH       Cowrie+nginx     Cowrie FTP
+        |                |                |
+   fake-rdp-01     fake-web-02      fake-smb-01
+   Heralding       Cowrie+nginx     Dionaea-style SMB
+        |
+   [ crdt-sync sidecar ] -> POST /api/vms/heartbeat
+   [ rl-adaptive sidecar ] -> ONNX PPO decisions
+        |
+   [ Backend API - Node.js + TypeScript ]
+        |
+   [ MongoDB ] + [ WebSocket ]
+        |
+   [ SOC Dashboard - Next.js ]
+```
+
+## Core Components
+
+| Component | Tech | Purpose |
+| --- | --- | --- |
+| Backend API | Node.js, TypeScript, Express, MongoDB | Aggregates attacker data, VM status, RL decisions, MITRE mappings, and WebSocket events |
+| Frontend Dashboard | Next.js, React, Tailwind CSS, shadcn/ui, Recharts | Real-time SOC dashboard, attacker profiles, infrastructure health, MITRE heatmap, RL panels |
+| Kubernetes Honeynet | kind, Kubernetes, HAProxy, Cowrie, nginx | Attacker-facing decoy network with isolated honeypot pods |
+| CRDT Sync | Rust, shell sidecars, heartbeat API | Distributed attacker state synchronization without a central coordinator |
+| RL Adaptive Engine | Python training, ONNX export, Rust inference | Chooses maintain, escalate, breadcrumb, or observe actions |
+| Simulation Layer | Vagrant, libvirt, QEMU/KVM | Optional VM-based fake and real infrastructure simulations |
+
+## Quick Start
+
+No Vagrant, KVM, Kubernetes, or Rust required for the basic dashboard demo.
+
+```bash
+git clone https://github.com/karandesai2005/Maya_Deception_Tech
+cd Maya_Deception_Tech
+cp .env.example .env
+docker compose up --build
+```
+
+Open the dashboard:
+
+```text
+http://localhost:3000
+```
+
+The control plane starts:
+
+- MongoDB on `localhost:27017`
+- Backend API on `localhost:3001`
+- Frontend dashboard on `localhost:3000`
+
+The dashboard can run with simulated attacker data automatically. To connect real honeypot VMs, see [simulations/README.md](simulations/README.md).
 
 ## Kubernetes Honeynet
 
-Deploys 7 real honeypot pods as an attacker-facing network using kind.
+The Kubernetes layer deploys seven attacker-facing decoy pods in a `maya-honeynet` namespace using kind.
 
 | Pod | Image | Simulates |
-|-----|-------|-----------|
-| fake-jump-01 | cowrie/cowrie | SSH jump server |
-| fake-web-01 | cowrie + nginx | Web server with decoy portal |
-| fake-web-02 | cowrie + nginx | Secondary web server |
-| fake-ftp-01 | cowrie/cowrie | FTP server |
-| fake-rdp-01 | dtagdevsec/heralding | RDP server |
-| fake-smb-01 | dtagdevsec/dionaea | SMB file server |
-| gateway-vm | haproxy:2.8-alpine | Network gateway + stats breadcrumb |
+| --- | --- | --- |
+| `gateway-vm` | `haproxy:2.8-alpine` | Gateway, routing, HAProxy stats breadcrumb |
+| `fake-jump-01` | `cowrie/cowrie` | SSH jump server |
+| `fake-web-01` | `cowrie/cowrie` + `nginx:alpine` | Web server and SSH surface |
+| `fake-web-02` | `cowrie/cowrie` + `nginx:alpine` | Secondary web server |
+| `fake-ftp-01` | `cowrie/cowrie` | FTP and SSH service |
+| `fake-rdp-01` | Cowrie-based demo service | RDP-facing decoy service |
+| `fake-smb-01` | Cowrie-based demo service | SMB-facing decoy service |
 
-### Prerequisites
-- Docker (already running for control plane)
-- kind: https://kind.sigs.k8s.io/docs/user/quick-start/#installation
-- kubectl: https://kubernetes.io/docs/tasks/tools/
+### Deploy
 
-### Deploy honeynet
+Prerequisites: Docker, kind, and kubectl.
+
 ```bash
+# Start the control plane first.
+docker compose up -d
+
+# Start the honeynet.
 chmod +x k8s/deploy.sh
 ./k8s/deploy.sh
 ```
 
-### Watch CRDT heartbeats live
+Useful endpoints after deployment:
+
+```text
+Dashboard:       http://localhost:3000
+Backend API:     http://localhost:3001
+Gateway:         http://localhost:8080
+HAProxy stats:   http://localhost:8081/stats
+```
+
+Watch CRDT heartbeats:
+
 ```bash
 kubectl logs -n maya-honeynet deployment/fake-jump-01 -c crdt-sync -f
 ```
 
-### Tear down
+Tear down:
+
 ```bash
 ./k8s/teardown.sh
 ```
 
-### Architecture
-```
-Attackers → gateway NodePort (localhost:8080)
-         → routed to honeypot pods
-         → CRDT sidecar POSTs state to backend API
-         → backend updates MongoDB + broadcasts WebSocket
-         → dashboard shows live attacker activity
-```
+## RL Adaptive Engine
 
-# Maya — Autonomous Deception Fabric
+Maya includes an offline RL training pipeline and a Rust inference sidecar path. The policy observes attacker behavior, turns it into a 25-dimensional feature vector, and chooses one of four deception actions.
 
-> **Trap attackers. Study them. Harden your defenses.**
-
-Maya is an enterprise-grade cybersecurity deception platform that deploys autonomous honeypot networks mirroring real infrastructure. When attackers breach your perimeter, they walk into a parallel fake environment — where every move is silently tracked, fingerprinted, and mapped to MITRE ATT&CK in real time.
-
-<img width="1319" height="767" alt="image" src="https://github.com/user-attachments/assets/74d548ba-3a65-4c62-bea4-c1c538b5ec97" />
-
-<img width="588" height="332" alt="image" src="https://github.com/user-attachments/assets/1814aed1-e0dd-4a52-9b0b-60abab475ecd" />
-
-
----
-
-## What It Does
-
-Traditional defenses wait for attackers to hit real systems. Maya takes a different approach — **deception as detection**.
-
-- Deploys a parallel fake network (SSH servers, web servers, databases, FTP, RDP, SMB) that looks and behaves exactly like real infrastructure
-- Plants fake credentials as breadcrumbs that lead attackers deeper into the honeypot
-- Tracks every action across distributed nodes using **CRDT-based state synchronization** (Rust)
-- Maps all attacker behavior automatically to **MITRE ATT&CK techniques**
-- Streams live data to a real-time dashboard via WebSockets
-
-The result: you're not just detecting attackers — you're studying them.
-
----
-
-## Architecture
-
-```
-                         Internet
-                             │
-                       [ Attacker ]
-                             │
-             ┌───────────────┴───────────────┐
-             │                               │
-        corp_net (real)               maya_net (fake)
-        10.10.10.0/24                10.20.20.0/24
-             │                               │
-        [Protected]               ┌──────────┴──────────┐
-                                  │                     │
-                             fake-jump-01          fake-web-01
-                             fake-db-01            fake-ftp-01
-                             fake-rdp-01           fake-smb-01
-                                  │
-                         [ CRDT Sync Layer ]
-                         syslogd-helper (Rust)
-                                  │
-                         [ Backend API (Node.js) ]
-                                  │
-                         [ Live Dashboard (Next.js) ]
+```text
+/crdt-state
+    |
+Python poller / Rust feature extractor
+    |
+25-dimensional attacker behavior vector
+    |
+ONNX PPO model: maya_rl_policy.onnx
+    |
+Action:
+  0 maintain
+  1 escalate_tier
+  2 plant_breadcrumb
+  3 observe_only
+    |
+/deception volume:
+  admin-password.txt
+  db-credentials.json
+  fake-api-key.txt
+  internal-secret.key
 ```
 
-### Core Components
+Train and export the model:
 
-| Component | Tech | Purpose |
-|---|---|---|
-| **Backend API** | Node.js + TypeScript + MongoDB | Aggregates attacker data, WebSocket broadcasts |
-| **Frontend Dashboard** | Next.js + React + Recharts | Real-time attacker tracking, MITRE heatmap, lateral movement graph |
-| **Honeypot VMs** | Vagrant + libvirt + QEMU/KVM | Fake infrastructure nodes |
-| **Docker Honeypots** | Cowrie, Dionaea, Conpot, Honeytrap | Low-interaction service emulation |
-| **CRDT Sync** | Rust | Distributed attacker state without central coordination |
-| **ELK Stack** | Elasticsearch + Logstash + Kibana | Log storage and visualization |
+```bash
+cd rl-training
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+python data_generator.py --num-episodes 800 --out data/synthetic/
+python train_ppo.py --total-timesteps 80000 --log-dir logs/ppo_maya
+python export_onnx.py \
+  --model-path logs/ppo_maya/best/best_model.zip \
+  --out models/maya_rl_policy.onnx
+python test_roundtrip_onnx.py --model models/maya_rl_policy.onnx
+```
 
----
+Run the Rust side:
+
+```bash
+cd scripts/rl
+cargo run -- simulate
+```
 
 ## CRDT State Synchronization
 
-The hardest problem in a distributed honeypot: keeping attacker state consistent across nodes **without a central coordinator** (which is itself an attack target).
-
-Maya uses **Conflict-free Replicated Data Types** implemented in Rust:
+The difficult part of a distributed honeypot is keeping attacker state consistent across nodes without trusting a central coordinator. Maya uses Conflict-free Replicated Data Types so nodes can converge even with network partitions or out-of-order messages.
 
 | CRDT Type | Data | Merge Rule |
-|---|---|---|
-| **G-Set** | Visited hosts, historical actions | Union — hosts are never "unvisited" |
-| **AWOR-Set** | Stolen credentials | Add-wins: credential theft is permanent |
-| **LWW-Register** | Current attacker location | Last-write-wins by Lamport timestamp |
-| **LWW-Map** | Active sessions per host | Per-key LWW resolution |
+| --- | --- | --- |
+| G-Set | Visited hosts and historical actions | Union; hosts are never unvisited |
+| AWOR-Set | Stolen credentials | Add-wins; credential theft is permanent |
+| LWW-Register | Current attacker location | Last write wins by Lamport timestamp |
+| LWW-Map | Active sessions per host | Per-key last-write-wins resolution |
 
-Sync happens over multiple redundant channels:
-- SSH profile hooks (`/etc/profile.d/10-sys-audit.sh`) on login
-- HTTP endpoints via nginx internal locations on web servers
-- Logrotate postrotate hooks
-- APT post-invoke hooks
-
-**Mathematical guarantee**: nodes converge to the same state regardless of network partitions or message ordering.
-
----
+CRDT activity is surfaced through VM heartbeats and dashboard panels such as CRDT sync status, infrastructure overview, and live activity feeds.
 
 ## MITRE ATT&CK Mapping
 
-Every attacker action is automatically classified:
+Maya classifies attacker actions into ATT&CK tactics and techniques.
 
 | Attacker Action | Technique | Tactic |
-|---|---|---|
-| SSH login with fake credential | T1078 — Valid Accounts | Initial Access |
-| Pivot between honeypot nodes | T1021 — Remote Services | Lateral Movement |
-| Credential dumping attempt | T1003 — OS Credential Dumping | Credential Access |
-| Web shell deployment | T1505 — Server Software Component | Persistence |
-| Data exfiltration attempt | T1041 — Exfiltration Over C2 | Exfiltration |
+| --- | --- | --- |
+| SSH login with fake credential | T1078 - Valid Accounts | Initial Access |
+| Pivot between honeypot nodes | T1021 - Remote Services | Lateral Movement |
+| Credential dumping attempt | T1003 - OS Credential Dumping | Credential Access |
+| Web shell deployment | T1505 - Server Software Component | Persistence |
+| Data exfiltration attempt | T1041 - Exfiltration Over C2 | Exfiltration |
+| Network/service scan | T1046 - Network Service Discovery | Discovery |
 
----
+MITRE data can be synced locally using the backend job in [backend/jobs](backend/jobs).
 
-## Dashboard
+## Dashboard Features
 
-The live dashboard gives security teams:
+- Infrastructure overview with VM/pod health and live status.
+- Attacker profiles with IP, entry point, dwell time, privilege level, and campaign signals.
+- Attack timeline with severity and command activity.
+- MITRE ATT&CK matrix and technique coverage.
+- Lateral movement graph showing attacker pivots.
+- Credential usage and decoy artifact tracking.
+- RL decision, reward, feature, and sophistication panels.
+- WebSocket-driven live activity feed.
 
-- **Infrastructure Overview** — health score, active decoys, active sessions
-- **Attacker Profiles** — IP, entry point, privilege level, dwell time, campaign detection
-- **Attack Timeline** — chronological event log with severity coding
-- **MITRE ATT&CK Heatmap** — visual technique coverage across all active attackers
-- **Lateral Movement Graph** — network topology of attacker pivots
-- **Credential Intelligence** — stolen credential tracking with risk scoring
-- **Behavior Analysis** — privilege escalation patterns, confidence scoring
+## Repository Layout
 
-All data updates in real time via WebSocket.
-
----
-
-## Honeypot Infrastructure
-
-| VM | IP | Emulates |
-|---|---|---|
-| `gateway-vm` | 10.20.20.1 | Honey wall, NAT, traffic redirection |
-| `fake-jump-01` | 10.20.20.10 | SSH jump server |
-| `fake-web-01` | 10.20.20.20 | nginx web server |
-| `fake-web-02` | 10.20.20.21 | Secondary web server |
-| `fake-ftp-01` | 10.20.20.30 | FTP server |
-| `fake-rdp-01` | 10.20.20.40 | RDP server |
-| `fake-smb-01` | 10.20.20.50 | SMB file server |
-
-Docker honeypot services: **Cowrie** (SSH), **Dionaea** (malware capture), **Conpot** (ICS/SCADA), **Honeytrap** (low-interaction).
-
----
-
-## Getting Started
-
-### Prerequisites
-
-- Node.js 18+
-- MongoDB 6+
-- Vagrant 2.4+ with vagrant-libvirt
-- QEMU/KVM
-- Docker + docker-compose
-- Rust (for CRDT binary)
-
-### Backend
-
-```bash
-cd backend
-npm install
-cp .env.example .env
-npm run dev
+```text
+backend/          Node.js API, MongoDB models, WebSocket services
+frontend/         Next.js dashboard and API routes
+k8s/              kind-based Kubernetes honeynet manifests
+scripts/crdt/     Rust CRDT implementation and helper binary
+scripts/rl/       Rust RL inference and sidecar support
+rl-training/      Python PPO training and ONNX export pipeline
+simulations/      Vagrant/libvirt real, fake, and control-plane simulations
+docs/             Architecture docs, screenshots, GIF, and research paper
 ```
 
-### Frontend
+## Documentation
 
-```bash
-cd frontend
-npm install
-npm run dev
-# Dashboard → http://localhost:3000
-```
-
-### VM Infrastructure
-
-```bash
-# Define networks
-virsh net-define simulations/corp_net.xml
-virsh net-define simulations/maya_net.xml
-virsh net-start corp_net && virsh net-start maya_net
-
-# Build CRDT binary
-cd scripts/crdt
-cargo build --release --target x86_64-unknown-linux-musl
-
-# Deploy everything
-./scripts/setup-infrastructure.sh setup
-```
-
-### VM Management
-
-```bash
-./scripts/manage-vms.sh list
-./scripts/manage-vms.sh start fake-jump-01
-./scripts/manage-vms.sh ssh fake-web-01
-```
-
----
+- [Architecture](docs/architecture.md)
+- [Simulations](docs/simulations.md)
+- [Testing](docs/testing.md)
+- [Research Paper](docs/research-paper.pdf)
+- [Backend](backend/README.md)
+- [RL Training](rl-training/README.md)
+- [Simulation Infrastructure](simulations/README.md)
 
 ## Environment Variables
 
 ```env
 PORT=3001
 MONGODB_URI=mongodb://localhost:27017/maya_deception
-JWT_SECRET=your-secret-key
+JWT_SECRET=dev-secret-change-in-production
 NODE_ENV=development
+SIMULATION_MODE=true
 CRDT_SYNC_INTERVAL=10000
-VAGRANT_DIR=../simulations/fake
+CORS_ORIGINS=http://localhost:3000
+NEXT_PUBLIC_API_URL=http://backend:3001
 ```
 
----
+## Standards Alignment
+
+| Standard | Coverage |
+| --- | --- |
+| MITRE ATT&CK | T1078, T1021, T1003, T1505, T1041, T1046 |
+| NIST SP 800-53 | SC-26 deception concepts |
+| NIST SP 800-150 | Threat intelligence sharing concepts |
+| IEEE TIPPSS | Trust, Identity, Privacy, Protection, Safety, Security |
 
 ## Research Value
 
-This project demonstrates:
+- CRDT theory applied to distributed deception state.
+- RL-driven deception that adapts to attacker sophistication.
+- Deception as detection, where interaction with planted assets is a high-signal event.
+- MITRE ATT&CK integration for structured threat intelligence.
+- Lateral movement simulation for red-team and purple-team exercises.
+- Real-time SOC tooling for operational visibility.
 
-- **CRDT theory applied to security** — distributed state management without coordination
-- **Deception technology** as a proactive detection mechanism
-- **MITRE ATT&CK integration** for structured threat intelligence
-- **Lateral movement simulation** for red team / purple team exercises
-- **Real-time SOC tooling** with WebSocket-driven live dashboards
+## Known Limitations
 
-Suitable for cybersecurity research, SOC analyst training, and red team infrastructure.
+- The default local stack is configured for research and demo use.
+- API and WebSocket authentication are not production hardened yet.
+- Some Kubernetes honeypot services use demo-compatible containers while preserving the service-facing simulation.
 
----
+## Roadmap
 
-## Known Limitations & Roadmap
-
-**Current gaps:**
-- No API authentication (open endpoints — fine for research, not production)
-- WebSocket has no auth layer
-- Vagrant Vagrantfiles have duplicate provisioning blocks
-
-**Planned:**
-- JWT-based API access control
-- ML anomaly detection on attacker behavior patterns
-- MISP integration (STIX/TAXII export)
-- Windows Active Directory decoys
-- Automated IP blocking via iptables on confirmed attackers
-
----
-
-## Tech Stack
-
-**Backend:** Node.js · TypeScript · Express · MongoDB · WebSocket · Winston  
-**Frontend:** Next.js · React · Tailwind CSS · shadcn/ui · Recharts  
-**Infrastructure:** Vagrant · libvirt · QEMU/KVM · Docker  
-**Systems:** Rust (CRDT) · Go · Shell  
-**Security:** Cowrie · Dionaea · Conpot · ELK Stack
-
----
+- JWT-based API and WebSocket access control.
+- MISP integration with STIX/TAXII export.
+- Windows Active Directory decoys.
+- Automated blocking or containment workflows for confirmed attackers.
+- Deeper RL sidecar rollout across all honeypot pods.
 
 ## Authors
 
-Built by [Karan Desai](https://github.com/desaikaran) & [Pankhuri Varshney](https://github.com/pankhuriVarshney) & [Reeti Agarawal](https://github.com/Reeti05Agarwal)
+Built by [Karan Desai](https://github.com/karandesai2005), [Pankhuri Varshney](https://github.com/pankhuriVarshney), and [Reeti Agarwal](https://github.com/Reeti05Agarwal).
 
----
-
-*"The best way to understand how attackers think is to watch them work — without them knowing you're watching."*
+> The best way to understand how attackers think is to watch them work without letting them know they are being watched.
