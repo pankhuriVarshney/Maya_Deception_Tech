@@ -1,0 +1,153 @@
+{
+  "sophistication": 0.22,
+  "profile": "scripted_bot",
+  "length": 12,
+  "total_time": 58.9,
+  "steps": [
+    {
+      "t": 2.4,
+      "cmd": "sudo su -",
+      "ttp": "T1068",
+      "recon": 0,
+      "priv_esc": 1,
+      "cred_access": 0,
+      "lateral": 0,
+      "suspicious_tools": 0,
+      "exfil": 0,
+      "profile": "scripted_bot"
+    },
+    {
+      "t": 5.2,
+      "cmd": "cat /etc/os-release",
+      "ttp": "T1082",
+      "recon": 1,
+      "priv_esc": 1,
+      "cred_access": 0,
+      "lateral": 0,
+      "suspicious_tools": 0,
+      "exfil": 0,
+      "profile": "scripted_bot"
+    },
+    {
+      "t": 12.6,
+      "cmd": "cat /etc/passwd",
+      "ttp": "T1082",
+      "recon": 2,
+      "priv_esc": 1,
+      "cred_access": 0,
+      "lateral": 0,
+      "suspicious_tools": 0,
+      "exfil": 0,
+      "profile": "scripted_bot"
+    },
+    {
+      "t": 22.1,
+      "cmd": "ssh admin@fake-db-01",
+      "ttp": "T1021",
+      "recon": 2,
+      "priv_esc": 1,
+      "cred_access": 0,
+      "lateral": 1,
+      "suspicious_tools": 0,
+      "exfil": 0,
+      "profile": "scripted_bot"
+    },
+    {
+      "t": 24.3,
+      "cmd": "ss -tuln",
+      "ttp": "T1082",
+      "recon": 3,
+      "priv_esc": 1,
+      "cred_access": 0,
+      "lateral": 1,
+      "suspicious_tools": 0,
+      "exfil": 0,
+      "profile": "scripted_bot"
+    },
+    {
+      "t": 25.1,
+      "cmd": "last -n 5",
+      "ttp": "T1082",
+      "recon": 4,
+      "priv_esc": 1,
+      "cred_access": 0,
+      "lateral": 1,
+      "suspicious_tools": 0,
+      "exfil": 0,
+      "profile": "scripted_bot"
+    },
+    {
+      "t": 33.4,
+      "cmd": "whoami",
+      "ttp": "T1082",
+      "recon": 5,
+      "priv_esc": 1,
+      "cred_access": 0,
+      "lateral": 1,
+      "suspicious_tools": 0,
+      "exfil": 0,
+      "profile": "scripted_bot"
+    },
+    {
+      "t": 34.2,
+      "cmd": "cat /etc/passwd",
+      "ttp": "T1082",
+      "recon": 6,
+      "priv_esc": 1,
+      "cred_access": 0,
+      "lateral": 1,
+      "suspicious_tools": 0,
+      "exfil": 0,
+      "profile": "scripted_bot"
+    },
+    {
+      "t": 38.2,
+      "cmd": "psexec \\\\fake-web-02 -u admin -p Winter2023! cmd.exe",
+      "ttp": "T1021",
+      "recon": 6,
+      "priv_esc": 1,
+      "cred_access": 0,
+      "lateral": 2,
+      "suspicious_tools": 0,
+      "exfil": 0,
+      "profile": "scripted_bot"
+    },
+    {
+      "t": 39.0,
+      "cmd": "hostname",
+      "ttp": "T1082",
+      "recon": 7,
+      "priv_esc": 1,
+      "cred_access": 0,
+      "lateral": 2,
+      "suspicious_tools": 0,
+      "exfil": 0,
+      "profile": "scripted_bot"
+    },
+    {
+      "t": 41.1,
+      "cmd": "arp -a",
+      "ttp": "T1082",
+      "recon": 8,
+      "priv_esc": 1,
+      "cred_access": 0,
+      "lateral": 2,
+      "suspicious_tools": 0,
+      "exfil": 0,
+      "profile": "scripted_bot"
+    },
+    {
+      "t": 58.9,
+      "cmd": "id",
+      "ttp": "T1082",
+      "recon": 9,
+      "priv_esc": 1,
+      "cred_access": 0,
+      "lateral": 2,
+      "suspicious_tools": 0,
+      "exfil": 0,
+      "profile": "scripted_bot"
+    }
+  ],
+  "id": "trace_00424"
+}

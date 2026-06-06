@@ -148,7 +148,16 @@ pub struct AttackerState {
     pub visited_decoys: GSet<String>,
     pub actions_per_decoy: LWWMap<String, String>,
     pub location: LWWRegister<String>,
+
+    /// Bounded recent command history for rich RL feature extraction.
+    /// (decoy, raw_command_string, lamport_clock_tick)
+    /// This is the key addition for Phase 2: allows proper entropy, timing deltas,
+    /// sequence patterns (recon → priv-esc → lateral), without unbounded growth.
+    #[serde(default)]
+    pub recent_commands: Vec<(String, String, u64)>,
 }
+
+const MAX_RECENT_COMMANDS: usize = 96;
 
 impl AttackerState {
     pub fn new() -> Self {
@@ -156,13 +165,23 @@ impl AttackerState {
             visited_decoys: GSet::new(),
             actions_per_decoy: LWWMap::new(),
             location: LWWRegister::new(),
+            recent_commands: Vec::new(),
         }
     }
 
-    pub fn merge(&mut self, other: AttackerState) {
+    pub fn merge(&mut self, mut other: AttackerState) {
         self.visited_decoys.merge(other.visited_decoys);
         self.actions_per_decoy.merge(other.actions_per_decoy);
         self.location.merge(other.location);
+
+        // Merge recent commands: append other's, keep the most recent by ts, dedup-ish, truncate.
+        self.recent_commands.append(&mut other.recent_commands);
+        self.recent_commands.sort_by_key(|(_, _, ts)| *ts);
+        self.recent_commands.dedup_by(|a, b| a.0 == b.0 && a.1 == b.1 && a.2 == b.2);
+        if self.recent_commands.len() > MAX_RECENT_COMMANDS {
+            let excess = self.recent_commands.len() - MAX_RECENT_COMMANDS;
+            self.recent_commands.drain(0..excess);
+        }
     }
 }
 
@@ -268,6 +287,12 @@ impl MayaState {
             ts,
             node_id,
         );
+
+        // Rich history for RL feature extractor (Phase 2+)
+        attacker.recent_commands.push((decoy.to_string(), action.to_string(), ts));
+        if attacker.recent_commands.len() > MAX_RECENT_COMMANDS {
+            attacker.recent_commands.remove(0);
+        }
     }
 
     pub fn update_location(&mut self, ip: &str, location: &str) {

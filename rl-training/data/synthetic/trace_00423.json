@@ -1,0 +1,129 @@
+{
+  "sophistication": 0.261,
+  "profile": "scripted_bot",
+  "length": 10,
+  "total_time": 47.4,
+  "steps": [
+    {
+      "t": 2.6,
+      "cmd": "find / -name '*.conf' 2>/dev/null | head -5",
+      "ttp": "T1082",
+      "recon": 1,
+      "priv_esc": 0,
+      "cred_access": 0,
+      "lateral": 0,
+      "suspicious_tools": 0,
+      "exfil": 0,
+      "profile": "scripted_bot"
+    },
+    {
+      "t": 9.6,
+      "cmd": "find / -name '*.conf' 2>/dev/null | head -5",
+      "ttp": "T1082",
+      "recon": 2,
+      "priv_esc": 0,
+      "cred_access": 0,
+      "lateral": 0,
+      "suspicious_tools": 0,
+      "exfil": 0,
+      "profile": "scripted_bot"
+    },
+    {
+      "t": 12.5,
+      "cmd": "ps aux | head -20",
+      "ttp": "T1082",
+      "recon": 3,
+      "priv_esc": 0,
+      "cred_access": 0,
+      "lateral": 0,
+      "suspicious_tools": 0,
+      "exfil": 0,
+      "profile": "scripted_bot"
+    },
+    {
+      "t": 15.3,
+      "cmd": "cat /etc/sudoers",
+      "ttp": "T1068",
+      "recon": 3,
+      "priv_esc": 1,
+      "cred_access": 0,
+      "lateral": 0,
+      "suspicious_tools": 0,
+      "exfil": 0,
+      "profile": "scripted_bot"
+    },
+    {
+      "t": 26.2,
+      "cmd": "sudo -l",
+      "ttp": "T1068",
+      "recon": 3,
+      "priv_esc": 2,
+      "cred_access": 0,
+      "lateral": 0,
+      "suspicious_tools": 0,
+      "exfil": 0,
+      "profile": "scripted_bot"
+    },
+    {
+      "t": 35.3,
+      "cmd": "cat /etc/sudoers",
+      "ttp": "T1068",
+      "recon": 3,
+      "priv_esc": 3,
+      "cred_access": 0,
+      "lateral": 0,
+      "suspicious_tools": 0,
+      "exfil": 0,
+      "profile": "scripted_bot"
+    },
+    {
+      "t": 41.6,
+      "cmd": "cat /etc/shadow",
+      "ttp": "T1068",
+      "recon": 3,
+      "priv_esc": 4,
+      "cred_access": 0,
+      "lateral": 0,
+      "suspicious_tools": 0,
+      "exfil": 0,
+      "profile": "scripted_bot"
+    },
+    {
+      "t": 43.1,
+      "cmd": "netstat -an",
+      "ttp": "T1082",
+      "recon": 4,
+      "priv_esc": 4,
+      "cred_access": 0,
+      "lateral": 0,
+      "suspicious_tools": 0,
+      "exfil": 0,
+      "profile": "scripted_bot"
+    },
+    {
+      "t": 46.3,
+      "cmd": "ip addr",
+      "ttp": "T1082",
+      "recon": 5,
+      "priv_esc": 4,
+      "cred_access": 0,
+      "lateral": 0,
+      "suspicious_tools": 0,
+      "exfil": 0,
+      "profile": "scripted_bot"
+    },
+    {
+      "t": 47.4,
+      "cmd": "cat /root/.aws/credentials",
+      "ttp": "T1068",
+      "recon": 5,
+      "priv_esc": 4,
+      "cred_access": 1,
+      "lateral": 0,
+      "suspicious_tools": 0,
+      "exfil": 0,
+      "profile": "scripted_bot"
+    }
+  ],
+  "id": "trace_00423"
+}

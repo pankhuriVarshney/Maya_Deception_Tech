@@ -1,0 +1,186 @@
+# Example: fake-jump-01 with RL Adaptive sidecar (Phase 5 - Visible Actuation)
+# Apply after the base honeypots or use as reference to patch existing deployments.
+#
+# === HIGHLY VISIBLE DEMO FEATURES (for judges) ===
+# - RL sidecar always appends to /deception/RL_ACTUATED.log on every decision
+# - On plant_breadcrumb it creates obvious files:
+#     /deception/breadcrumbs/admin-password.txt
+#     /deception/breadcrumbs/internal-secret.key
+#     /deception/breadcrumbs/db-credentials.json
+#     /deception/breadcrumbs/fake-api-key.txt
+# - These are mounted into the honeypot container so you can:
+#     kubectl exec -it deploy/fake-jump-01 -c cowrie -- ls -lR /deception/breadcrumbs
+#     kubectl exec -it deploy/fake-jump-01 -c cowrie -- cat /deception/breadcrumbs/admin-password.txt
+#     kubectl exec -it deploy/fake-jump-01 -c cowrie -- tail -f /deception/RL_ACTUATED.log
+#
+# - Shared emptyDir "deception" + "crdt-state"
+# - RL sidecar runs the maya-rl daemon
+# - Needs the ServiceAccount + Role below for kubectl pod patching (tier escalation)
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: rl-actuator
+  namespace: maya-honeynet
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: rl-actuator-role
+  namespace: maya-honeynet
+rules:
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list", "watch", "patch", "update"]
+- apiGroups: ["apps"]
+  resources: ["deployments"]
+  verbs: ["get", "patch", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: rl-actuator-binding
+  namespace: maya-honeynet
+subjects:
+- kind: ServiceAccount
+  name: rl-actuator
+  namespace: maya-honeynet
+roleRef:
+  kind: Role
+  name: rl-actuator-role
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fake-jump-01
+  namespace: maya-honeynet
+  labels:
+    app.kubernetes.io/part-of: maya-deception
+    component: honeypot
+    maya.deception/tier: "med"   # RL can patch this
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: fake-jump-01
+  template:
+    metadata:
+      labels:
+        app: fake-jump-01
+        app.kubernetes.io/part-of: maya-deception
+        component: honeypot
+    spec:
+      serviceAccountName: rl-actuator
+      volumes:
+        - name: deception
+          emptyDir: {}
+        - name: crdt-state
+          emptyDir: {}
+      containers:
+        # Original honeypot (cowrie or your custom)
+        - name: cowrie
+          image: cowrie/cowrie:latest
+          ports:
+            - containerPort: 2222
+          envFrom:
+            - configMapRef:
+                name: maya-config
+          env:
+            - name: VM_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: VM_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+          volumeMounts:
+            # CRITICAL for demo: mount the deception volume so the honeypot (cowrie) can "discover"
+            # the fake files that the RL sidecar plants. Judges love `cat`ing these live.
+            - name: deception
+              mountPath: /deception
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "200m"
+              memory: "256Mi"
+
+        # Existing lightweight crdt heartbeat (kept for compatibility)
+        - name: crdt-sync
+          image: dwdraju/alpine-curl-jq:latest
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              echo "[CRDT] Sidecar starting"
+              while true; do
+                # In a real setup you would also sync real CRDT state into /crdt-state/.syscache here
+                curl -s -X POST "$BACKEND_API_URL/api/vms/heartbeat" \
+                  -H "Content-Type: application/json" \
+                  -d "{\"vmName\":\"$VM_NAME\",\"status\":\"running\",\"rlTier\":\"$(cat /deception/current_tier 2>/dev/null || echo med)\"}" \
+                  --connect-timeout 3 || true
+                sleep "$CRDT_SYNC_INTERVAL"
+              done
+          envFrom:
+            - configMapRef:
+                name: maya-config
+          env:
+            - name: VM_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: VM_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+          volumeMounts:
+            - name: deception
+              mountPath: /deception
+          resources:
+            requests: {cpu: "10m", memory: "16Mi"}
+
+        # === NEW: RL Adaptive Deception Engine Sidecar ===
+        - name: rl-adaptive
+          image: maya-rl-sidecar:latest   # Build with scripts/rl/Dockerfile.sidecar (or load into kind)
+          command: ["/app/maya-rl"]
+          args:
+            - "daemon"
+            - "--state"
+            - "/crdt-state/.syscache"
+            - "--interval"
+            - "3"
+            - "--post-to-backend"
+            - "--backend-url"
+            - "http://backend:3001"
+          env:
+            - name: RUST_LOG
+              value: "info"
+            - name: MAYA_RL_MODEL
+              value: "/app/models/maya_rl_policy.onnx"
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          volumeMounts:
+            - name: deception
+              mountPath: /deception
+            - name: crdt-state
+              mountPath: /crdt-state
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+---
+# Optional: expose nothing extra; the RL sidecar acts locally + via backend

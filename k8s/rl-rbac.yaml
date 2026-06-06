@@ -1,0 +1,35 @@
+# Minimal RBAC so the RL sidecar can perform real actions (patch its own pod for tier escalation, etc.)
+# Apply this before or together with the RL sidecar pods.
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: rl-actuator
+  namespace: maya-honeynet
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: rl-actuator-role
+  namespace: maya-honeynet
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch", "patch", "update"]
+  - apiGroups: ["apps"]
+    resources: ["deployments", "replicasets"]
+    verbs: ["get", "patch", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: rl-actuator-binding
+  namespace: maya-honeynet
+subjects:
+  - kind: ServiceAccount
+    name: rl-actuator
+    namespace: maya-honeynet
+roleRef:
+  kind: Role
+  name: rl-actuator-role
+  apiGroup: rbac.authorization.k8s.io

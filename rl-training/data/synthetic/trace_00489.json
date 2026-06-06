@@ -1,0 +1,105 @@
+{
+  "sophistication": 0.22,
+  "profile": "scripted_bot",
+  "length": 8,
+  "total_time": 36.3,
+  "steps": [
+    {
+      "t": 10.0,
+      "cmd": "ip addr",
+      "ttp": "T1082",
+      "recon": 1,
+      "priv_esc": 0,
+      "cred_access": 0,
+      "lateral": 0,
+      "suspicious_tools": 0,
+      "exfil": 0,
+      "profile": "scripted_bot"
+    },
+    {
+      "t": 24.6,
+      "cmd": "ss -tuln",
+      "ttp": "T1082",
+      "recon": 2,
+      "priv_esc": 0,
+      "cred_access": 0,
+      "lateral": 0,
+      "suspicious_tools": 0,
+      "exfil": 0,
+      "profile": "scripted_bot"
+    },
+    {
+      "t": 25.4,
+      "cmd": "ip addr",
+      "ttp": "T1082",
+      "recon": 3,
+      "priv_esc": 0,
+      "cred_access": 0,
+      "lateral": 0,
+      "suspicious_tools": 0,
+      "exfil": 0,
+      "profile": "scripted_bot"
+    },
+    {
+      "t": 26.4,
+      "cmd": "cat /etc/os-release",
+      "ttp": "T1082",
+      "recon": 4,
+      "priv_esc": 0,
+      "cred_access": 0,
+      "lateral": 0,
+      "suspicious_tools": 0,
+      "exfil": 0,
+      "profile": "scripted_bot"
+    },
+    {
+      "t": 29.5,
+      "cmd": "cat /etc/sudoers",
+      "ttp": "T1068",
+      "recon": 4,
+      "priv_esc": 1,
+      "cred_access": 0,
+      "lateral": 0,
+      "suspicious_tools": 0,
+      "exfil": 0,
+      "profile": "scripted_bot"
+    },
+    {
+      "t": 30.3,
+      "cmd": "last -n 5",
+      "ttp": "T1082",
+      "recon": 5,
+      "priv_esc": 1,
+      "cred_access": 0,
+      "lateral": 0,
+      "suspicious_tools": 0,
+      "exfil": 0,
+      "profile": "scripted_bot"
+    },
+    {
+      "t": 32.7,
+      "cmd": "ssh user@10.20.20.21",
+      "ttp": "T1021",
+      "recon": 5,
+      "priv_esc": 1,
+      "cred_access": 0,
+      "lateral": 1,
+      "suspicious_tools": 0,
+      "exfil": 0,
+      "profile": "scripted_bot"
+    },
+    {
+      "t": 36.3,
+      "cmd": "cat /etc/passwd",
+      "ttp": "T1082",
+      "recon": 6,
+      "priv_esc": 1,
+      "cred_access": 0,
+      "lateral": 1,
+      "suspicious_tools": 0,
+      "exfil": 0,
+      "profile": "scripted_bot"
+    }
+  ],
+  "id": "trace_00489"
+}

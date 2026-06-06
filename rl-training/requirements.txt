@@ -1,0 +1,39 @@
+# Maya RL Adaptive Deception Engine - Python Training Environment
+# IEEE SA Cybersecurity Hackathon 2026 — Team sudo_no_sleep
+#
+# Install:
+#   python -m venv .venv
+#   source .venv/bin/activate
+#   pip install -r requirements.txt
+#
+# Then:
+#   python -m rl_training.data_generator --help
+#   python rl_training/train_ppo.py
+#   python rl_training/export_onnx.py --model-path logs/ppo_maya/...
+
+# Core RL stack (2025/2026 best practice)
+stable-baselines3[extra]>=2.3.2
+gymnasium>=0.29.1
+torch>=2.4.0
+
+# ONNX export (critical for Rust ort inference)
+onnx>=1.16
+onnxruntime>=1.19
+
+# Data + viz for hackathon demos (reward curves, feature importance, live plots)
+numpy>=1.26
+pandas>=2.2
+matplotlib>=3.9
+seaborn>=0.13
+
+# Utilities
+tqdm>=4.66
+pyyaml>=6.0
+rich>=13.7
+
+# Optional but excellent for experiment tracking (highly recommended for judges)
+# tensorboard  (SB3 writes to it automatically)
+# wandb        # if you want cloud dashboards
+
+# For synthetic trace generation that feels like real Caldera / Empire output
+faker>=26.0

@@ -1,0 +1,60 @@
+[package]
+name = "maya-rl"
+version = "0.1.0"
+edition = "2021"
+authors = ["Team sudo_no_sleep <hackathon@ieee-sa-2026>"]
+description = "Reinforcement Learning Adaptive Deception Engine for Maya - Autonomous Deception Technology. ONNX inference + feature extraction alongside CRDT state."
+license = "MIT"
+publish = false
+
+[[bin]]
+name = "maya-rl"
+path = "src/main.rs"
+
+[dependencies]
+# Python bridge for ONNX inference (most reliable + simple for hackathon demo).
+# Avoids all ort / onnxruntime.so / external .data file pain.
+# Rust spawns `python3 inference.py` (see src/inference.rs) and parses JSON result.
+# Heuristic fallback is always available.
+
+# Core async runtime + process spawning for the Python bridge
+tokio = { version = "1.41", features = ["rt-multi-thread", "macros", "time", "sync", "fs", "signal", "process"] }
+
+# Serialization (for RLDecision JSON + feature vectors to Python)
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Time, logging, errors
+chrono = { version = "0.4", features = ["serde"] }
+anyhow = "1.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+
+# File watching for .syscache changes
+notify = "6.1"
+
+# Path dep on CRDT for real MayaState / AttackerState access in feature extractor
+maya-crdt = { path = "../crdt" }
+
+# Optional (for future metrics)
+prometheus = { version = "0.13", optional = true }
+
+# CLI parsing (used by main for subcommands daemon/simulate/infer)
+clap = { version = "4.5", features = ["derive"] }
+
+# Used in daemon for node id
+hostname = "0.3"
+
+[features]
+default = []
+metrics = ["prometheus"]
+
+[profile.release]
+opt-level = 3
+lto = true
+strip = true
+codegen-units = 1
+
+[profile.dev]
+opt-level = 0
+debug = true

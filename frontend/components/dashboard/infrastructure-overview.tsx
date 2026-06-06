@@ -1,11 +1,16 @@
 "use client"
 
-import { Network, Server, Shield, Activity, Container } from "lucide-react"
+import { Network, Server, Shield, Activity, Container, Brain } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { useVMStatus } from "@/hooks/use-vm-status"
 import { cn } from "@/lib/utils"
+import { RLDecisionsPanel } from "./rl-decisions-panel"
+import { RLSophisticationGauge } from "./rl-sophistication-gauge"
+import { RLFeatureTable } from "./rl-feature-table"
+import { RLRewardCurve } from "./rl-reward-curve"
+import { RLArtifactsPanel } from "./rl-artifacts-panel"
 
 export function InfrastructureOverview() {
   const { 
@@ -101,6 +106,53 @@ export function InfrastructureOverview() {
             </div>
           </div>
         )}
+
+        {/* === Phase 6: RL Adaptive Engine Section (Hackathon Wow) === */}
+        <div className="pt-4 border-t">
+          <div className="flex items-center gap-2 mb-3">
+            <Brain className="h-4 w-4 text-purple-500" />
+            <span className="font-semibold text-sm tracking-tight">RL ADAPTIVE DECEPTION — LIVE</span>
+            <Badge variant="outline" className="text-[10px] border-purple-500 text-purple-600">PHASE 6</Badge>
+          </div>
+
+          <div className="grid grid-cols-1 xl:grid-cols-12 gap-3">
+            {/* Live decisions feed - the star of the demo */}
+            <div className="xl:col-span-7">
+              <RLDecisionsPanel maxItems={5} />
+            </div>
+
+            <div className="xl:col-span-5 space-y-3">
+              <RLSophisticationGauge 
+                confidence={0.87} 
+                avgConfidence={0.79} 
+                label="Current Attacker Sophistication (RL view)" 
+              />
+              <RLRewardCurve decisions={[]} /> {/* Populated live via WS in real usage */}
+            </div>
+
+            <div className="xl:col-span-12">
+              <RLFeatureTable 
+                features={{
+                  recon_command_count: 13.4,
+                  privilege_escalation_attempts: 3.8,
+                  mitre_ttp_coverage: 4,
+                  command_entropy: 4.1,
+                  fingerprint_risk_score: 1.8,
+                  num_lateral_moves: 2,
+                }} 
+              />
+            </div>
+          </div>
+
+          <div className="mt-2 text-[10px] text-center text-muted-foreground">
+            Static tier = short dwell. <span className="font-medium text-purple-600">RL adaptive</span> = dramatically longer engagement + new TTPs observed.
+          </div>
+
+          {/* Live Actuation Artifacts - the killer demo feature */}
+          <div className="mt-4 pt-4 border-t">
+            <RLArtifactsPanel />
+          </div>
+        </div>
       </CardContent>
     </Card>
   )

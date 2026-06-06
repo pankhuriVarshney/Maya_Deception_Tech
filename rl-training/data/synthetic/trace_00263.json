@@ -1,0 +1,141 @@
+{
+  "sophistication": 0.22,
+  "profile": "scripted_bot",
+  "length": 11,
+  "total_time": 56.5,
+  "steps": [
+    {
+      "t": 1.3,
+      "cmd": "sudo -l",
+      "ttp": "T1068",
+      "recon": 0,
+      "priv_esc": 1,
+      "cred_access": 0,
+      "lateral": 0,
+      "suspicious_tools": 0,
+      "exfil": 0,
+      "profile": "scripted_bot"
+    },
+    {
+      "t": 10.5,
+      "cmd": "ps aux | head -20",
+      "ttp": "T1082",
+      "recon": 1,
+      "priv_esc": 1,
+      "cred_access": 0,
+      "lateral": 0,
+      "suspicious_tools": 0,
+      "exfil": 0,
+      "profile": "scripted_bot"
+    },
+    {
+      "t": 11.3,
+      "cmd": "sudo su -",
+      "ttp": "T1068",
+      "recon": 1,
+      "priv_esc": 2,
+      "cred_access": 0,
+      "lateral": 0,
+      "suspicious_tools": 0,
+      "exfil": 0,
+      "profile": "scripted_bot"
+    },
+    {
+      "t": 21.5,
+      "cmd": "whoami",
+      "ttp": "T1082",
+      "recon": 2,
+      "priv_esc": 2,
+      "cred_access": 0,
+      "lateral": 0,
+      "suspicious_tools": 0,
+      "exfil": 0,
+      "profile": "scripted_bot"
+    },
+    {
+      "t": 28.9,
+      "cmd": "ls -la /home",
+      "ttp": "T1082",
+      "recon": 3,
+      "priv_esc": 2,
+      "cred_access": 0,
+      "lateral": 0,
+      "suspicious_tools": 0,
+      "exfil": 0,
+      "profile": "scripted_bot"
+    },
+    {
+      "t": 30.4,
+      "cmd": "last -n 5",
+      "ttp": "T1082",
+      "recon": 4,
+      "priv_esc": 2,
+      "cred_access": 0,
+      "lateral": 0,
+      "suspicious_tools": 0,
+      "exfil": 0,
+      "profile": "scripted_bot"
+    },
+    {
+      "t": 36.9,
+      "cmd": "arp -a",
+      "ttp": "T1082",
+      "recon": 5,
+      "priv_esc": 2,
+      "cred_access": 0,
+      "lateral": 0,
+      "suspicious_tools": 0,
+      "exfil": 0,
+      "profile": "scripted_bot"
+    },
+    {
+      "t": 37.7,
+      "cmd": "lsadump::sam",
+      "ttp": "T1068",
+      "recon": 5,
+      "priv_esc": 2,
+      "cred_access": 1,
+      "lateral": 0,
+      "suspicious_tools": 0,
+      "exfil": 0,
+      "profile": "scripted_bot"
+    },
+    {
+      "t": 51.9,
+      "cmd": "find / -name '*.conf' 2>/dev/null | head -5",
+      "ttp": "T1082",
+      "recon": 6,
+      "priv_esc": 2,
+      "cred_access": 1,
+      "lateral": 0,
+      "suspicious_tools": 0,
+      "exfil": 0,
+      "profile": "scripted_bot"
+    },
+    {
+      "t": 55.0,
+      "cmd": "psexec \\\\fake-web-02 -u admin -p Winter2023! cmd.exe",
+      "ttp": "T1021",
+      "recon": 6,
+      "priv_esc": 2,
+      "cred_access": 1,
+      "lateral": 1,
+      "suspicious_tools": 0,
+      "exfil": 0,
+      "profile": "scripted_bot"
+    },
+    {
+      "t": 56.5,
+      "cmd": "ls -la /home",
+      "ttp": "T1082",
+      "recon": 7,
+      "priv_esc": 2,
+      "cred_access": 1,
+      "lateral": 1,
+      "suspicious_tools": 0,
+      "exfil": 0,
+      "profile": "scripted_bot"
+    }
+  ],
+  "id": "trace_00263"
+}

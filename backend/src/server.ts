@@ -20,7 +20,9 @@ import dashboardRoutes from './routes/dashboard';
 import simulationRoutes from './routes/simulation';
 import decoyRoutes from './routes/decoy';
 import vmRoutes, { setVmRoutesWebSocket } from './routes/vms';
+import rlRoutes, { setRLRoutesWebSocket } from './routes/rl';
 import { Attacker } from './models';
+import { rlArtifactsService } from './services/RLArtifactsService';
 
 dotenv.config();
 
@@ -69,10 +71,17 @@ const simulationService = new RealSimulationService();
 const wsHandler = new WebSocketHandler(server, crdtSync, simulationService);
 setVmRoutesWebSocket(wsHandler);
 
+// Seed demo artifacts so "Live Actuation Artifacts" panel has content on first load
+rlArtifactsService.seedDemoArtifacts();
+
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/simulation', simulationRoutes);
 app.use('/api/decoy', decoyRoutes);
 app.use('/api/vms', vmRoutes);
+app.use('/api/rl', rlRoutes);
+
+// Wire WebSocket handler to RL routes so decisions can be broadcast live
+setRLRoutesWebSocket(wsHandler);
 
 app.get('/health', (_req, res) => {
   res.json({

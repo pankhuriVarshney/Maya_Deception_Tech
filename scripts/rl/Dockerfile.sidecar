@@ -1,0 +1,28 @@
+FROM rust:1.85 AS builder
+WORKDIR /build
+
+COPY scripts/crdt /build/crdt
+COPY scripts/rl /build/rl
+
+WORKDIR /build/rl
+RUN cargo build --release --bin maya-rl
+
+FROM debian:bookworm-slim
+RUN apt-get update && apt-get install -y python3 python3-pip curl ca-certificates && rm -rf /var/lib/apt/lists/*
+
+# Install Python deps
+RUN pip3 install --no-cache-dir numpy onnxruntime --break-system-packages
+WORKDIR /app
+
+COPY --from=builder /build/rl/target/release/maya-rl /app/maya-rl
+COPY scripts/rl/inference.py /app/inference.py
+COPY scripts/rl/rl_poller.py /app/rl_poller.py
+
+RUN mkdir -p /app/models
+COPY scripts/rl/models/maya_rl_policy.onnx /app/models/maya_rl_policy.onnx
+COPY scripts/rl/models/maya_rl_policy.onnx.data /app/models/maya_rl_policy.onnx.data
+RUN chmod +x /app/maya-rl /app/rl_poller.py
+
+# Use the reliable poller script for the demo (polls state, calls inference, writes log + breadcrumbs)
+# The Rust binary is still available for `simulate` mode if needed.
+CMD ["python3", "/app/rl_poller.py"]
