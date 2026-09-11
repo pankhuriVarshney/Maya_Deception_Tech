@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis-01
+  namespace: maya-decoys
+  labels:
+    maya.decoy/type: redis
+    maya.decoy/tier: low
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis-01
+  template:
+    metadata:
+      labels:
+        app: redis-01
+        maya.decoy/type: redis
+    spec:
+      runtimeClassName: gvisor
+      automountServiceAccountToken: false
+      containers:
+        - name: redis
+          image: maya-redis:dev
+          imagePullPolicy: IfNotPresent
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 22
+              name: ssh
+            - containerPort: 6379
+              name: redis
+          env:
+            - name: DECOY_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: redis-creds
+                  key: password 
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+      volumes:
+        - name: syscache
+          emptyDir: {}

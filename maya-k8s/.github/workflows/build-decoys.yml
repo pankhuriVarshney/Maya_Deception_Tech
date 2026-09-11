@@ -1,0 +1,83 @@
+name: Build Decoy Images
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docker/**"
+      - "lifecycle-manager/**"
+      - ".github/workflows/build-decoys.yml"
+  pull_request:
+    paths:
+      - "docker/**"
+      - "lifecycle-manager/**"
+
+env:
+  REGISTRY: ghcr.io
+  ORG: Maya # TODO: set to your GitHub org/user
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        include:
+          - name: maya-web-decoy
+            context: docker/web-decoy
+            smoke_port: 80
+          - name: maya-redis-decoy
+            context: docker/redis-decoy
+            smoke_port: 6379
+          - name: maya-jump-decoy
+            context: docker/jump-decoy
+            smoke_port: 22
+          - name: maya-lifecycle-manager
+            context: lifecycle-manager
+            smoke_port: "" # no HTTP smoke test yet, no k8s context in CI
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build image
+        run: |
+          docker build -t ${{ env.REGISTRY }}/${{ env.ORG }}/${{ matrix.name }}:${{ github.sha }} \
+            -t ${{ env.REGISTRY }}/${{ env.ORG }}/${{ matrix.name }}:latest \
+            ${{ matrix.context }}
+
+      - name: Smoke test container starts and port opens
+        if: matrix.smoke_port != ''
+        run: |
+          CID=$(docker run -d -e DECOY_PASSWORD=ci-test-pass \
+            ${{ env.REGISTRY }}/${{ env.ORG }}/${{ matrix.name }}:${{ github.sha }})
+          sleep 5
+          echo "Container logs:"
+          docker logs "$CID"
+          # Check the process is still running (crashed = exit code != 0 on inspect)
+          RUNNING=$(docker inspect -f '{{.State.Running}}' "$CID")
+          if [ "$RUNNING" != "true" ]; then
+            echo "Container exited unexpectedly"
+            exit 1
+          fi
+          docker stop "$CID"
+
+      # TODO (later, cheap to add now the pipeline exists):
+      # - name: Scan image
+      #   uses: aquasecurity/trivy-action@master
+      #   with:
+      #     image-ref: ${{ env.REGISTRY }}/${{ env.ORG }}/${{ matrix.name }}:${{ github.sha }}
+
+      - name: Push image
+        if: github.event_name == 'push'
+        run: |
+          docker push ${{ env.REGISTRY }}/${{ env.ORG }}/${{ matrix.name }}:${{ github.sha }}
+          docker push ${{ env.REGISTRY }}/${{ env.ORG }}/${{ matrix.name }}:latest

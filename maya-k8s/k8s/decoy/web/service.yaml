@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: web-03
+  namespace: maya-decoys
+spec:
+  selector:
+    app: web-03
+  ports:
+    - name: ssh
+      port: 22
+      targetPort: 22
+    - name: http
+      port: 80
+      targetPort: 80

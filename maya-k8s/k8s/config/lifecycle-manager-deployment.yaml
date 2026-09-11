@@ -1,0 +1,65 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: decoy-lifecycle-manager
+  namespace: maya-control
+---
+# Minimum viable RBAC: read/write Deployments in maya-decoys only.
+# Epic 5 tightens this further and adds mTLS/JWT on the HTTP layer.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: decoy-deployment-manager
+  namespace: maya-decoys
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "watch", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: decoy-lifecycle-manager-binding
+  namespace: maya-decoys
+subjects:
+  - kind: ServiceAccount
+    name: decoy-lifecycle-manager
+    namespace: maya-control
+roleRef:
+  kind: Role
+  name: decoy-deployment-manager
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: decoy-lifecycle-manager
+  namespace: maya-control
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: decoy-lifecycle-manager
+  template:
+    metadata:
+      labels:
+        app: decoy-lifecycle-manager
+    spec:
+      serviceAccountName: decoy-lifecycle-manager
+      containers:
+        - name: lifecycle-manager
+          image: ghcr.io/Maya/maya-lifecycle-manager:latest
+          ports:
+            - containerPort: 8081
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: decoy-lifecycle-manager
+  namespace: maya-control
+spec:
+  selector:
+    app: decoy-lifecycle-manager
+  ports:
+    - port: 8081
+      targetPort: 8081

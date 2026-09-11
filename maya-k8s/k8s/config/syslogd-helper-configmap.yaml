@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: syslogd-helper-script
+  namespace: maya-decoys
+data:
+  syslogd-helper: |
+    #!/bin/sh
+    case "$1" in
+      stats)
+        if [ -f /var/lib/.syscache ]; then
+          cat /var/lib/.syscache
+        else
+          echo '{"attackers":{},"stolen_creds":{},"active_sessions":{}}'
+        fi
+        ;;
+      *)
+        echo "Usage: $0 {stats}"
+        exit 1
+        ;;
+    esac
