@@ -1,4 +1,10 @@
 #!/bin/bash
+#
+# NOTE (Epic 1 stabilization): this ad-hoc fix has been folded into the
+# canonical path -- `./scripts/setup-infrastructure.sh setup` (or `fix`)
+# now generates this same full-mesh peers.conf and starts the daemon via
+# deploy_crdt()/install_crdt_daemon(). Kept here for manual/standalone use,
+# but prefer the canonical script for a fresh deployment.
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'

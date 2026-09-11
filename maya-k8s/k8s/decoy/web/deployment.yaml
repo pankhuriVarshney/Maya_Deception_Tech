@@ -17,7 +17,7 @@ spec:
         app: web-03
         maya.decoy/type: web
     spec:
-      runtimeClassName: gvis
+      runtimeClassName: gvisor
       automountServiceAccountToken: false
       containers:
         - name: web

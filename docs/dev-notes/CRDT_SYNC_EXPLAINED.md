@@ -1,6 +1,51 @@
 # CRDT Synchronization - How It Actually Works
 
-## The Critical Discovery: **CRDT Peer-to-Peer Sync is BROKEN**
+## Status update (Epic 1 stabilization)
+
+The rest of this document is the original investigation that found
+peer-to-peer CRDT sync broken, and recommended **not** fixing it (see "What
+You Should Do" below) in favor of the backend-polling architecture alone.
+
+That recommendation has been superseded. As of this pass, peer-to-peer sync
+has actually been fixed in the canonical setup path
+(`scripts/setup-infrastructure.sh` → `deploy_crdt()`):
+
+- `peers.conf` is now generated as a real full mesh (every running VM lists
+  every *other* running VM's internal `10.20.20.x` IP), not just the
+  gateway's IP.
+- The `syslogd-helper daemon` process (which calls `sync_with_peers()` on a
+  10s loop) is now actually installed and started on every VM — via
+  systemd where available, with a fallback for init systems without it
+  (e.g. Alpine on `fake-jump-01`). Previously the daemon binary existed but
+  nothing ever launched it.
+- The hooks in `setup-infrastructure.sh` and in
+  `scripts/10-sys-audit.sh` / `scripts/20-sys-command-audit.sh` /
+  `scripts/fix-crdt-monitoring.sh` called `syslogd-helper observe` and
+  `syslogd-helper sync` — **neither is a real subcommand** in
+  `scripts/crdt/src/main.rs` (the real ones are `visit`, `action`, `move`,
+  `cred`, `session`, `merge`, `daemon`, `hash`, `stats`, `show`,
+  `check-peers`). Every one of those calls was silently failing
+  (`2>/dev/null || true`). They've been changed to call `visit`/`action`,
+  which do exist.
+
+So both layers described below are now real:
+1. **Peer-to-peer CRDT mesh** (VM ↔ VM via the daemon) — now actually runs.
+2. **Backend-driven polling + MongoDB merge** — was already the thing
+   actually keeping the dashboard correct, and still is; it doesn't depend
+   on peer sync working and remains the dashboard's source of truth.
+
+Caveat carried over from `REAL_ATTACK_DETECTION_STATUS.md`: the
+`/etc/profile.d/10-sys-audit.sh` hook only fires on **interactive** SSH
+sessions (a `/etc/profile.d` limitation, not something this fix changes) —
+`vagrant ssh -c "..."` non-interactive calls still won't trigger it.
+
+This was a genuinely broken part of the system before this pass (not just
+a documentation gap) — the sections below are kept for the diagnostic
+detail, not as current guidance.
+
+---
+
+## The Original Discovery: **CRDT Peer-to-Peer Sync is BROKEN**
 
 After analyzing your code, I found that **the CRDT synchronization between VMs is NOT working at all**. Here's the complete breakdown:
 

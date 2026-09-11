@@ -1,4 +1,9 @@
 #!/bin/bash
+#
+# NOTE (Epic 1 stabilization): folded into the canonical path -- see
+# install_crdt_daemon() in scripts/setup-infrastructure.sh, run via
+# `./scripts/setup-infrastructure.sh setup` (or `fix`). Kept here for
+# manual/standalone use.
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'

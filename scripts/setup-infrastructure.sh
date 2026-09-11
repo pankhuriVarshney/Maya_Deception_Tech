@@ -323,52 +323,115 @@ PROVISION
 }
 
 # Build and deploy CRDT binary to VMs
+is_vm_running() {
+    local vm="$1"
+    virsh domstate "$vm" 2>/dev/null | grep -q "running" || \
+    virsh domstate "${vm}_default" 2>/dev/null | grep -q "running"
+}
+
+# Read a VM's internal maya_net (10.20.20.0/24) IP. gateway-vm carries that
+# network on eth2; every decoy VM carries it on eth1.
+get_vm_internal_ip() {
+    local vm="$1"
+    local iface="eth1"
+    [[ "$vm" == "gateway-vm" ]] && iface="eth2"
+
+    (cd "${VAGRANT_DIR}/${vm}" && vagrant ssh -c \
+        "ip addr show ${iface} 2>/dev/null | grep 'inet ' | awk '{print \$2}' | cut -d/ -f1" \
+        2>/dev/null) | grep -oE '10\.20\.20\.[0-9]+' | head -1
+}
+
+# Install syslogd-helper as an always-on background daemon so peer-to-peer
+# sync_with_peers() actually runs (previously: installed, never started).
+# Tries systemd first; falls back to a nohup'd background process for
+# init systems without systemd (e.g. Alpine/OpenRC on fake-jump-01).
+install_crdt_daemon() {
+    local vm="$1"
+    cd "${VAGRANT_DIR}/${vm}"
+
+    vagrant ssh -c '
+      if command -v systemctl >/dev/null 2>&1; then
+        sudo tee /etc/systemd/system/syslogd-helper.service > /dev/null <<EOF
+[Unit]
+Description=Maya CRDT Synchronization Daemon
+After=network.target
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/local/bin/syslogd-helper daemon
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+EOF
+        sudo systemctl daemon-reload
+        sudo systemctl enable syslogd-helper.service >/dev/null 2>&1
+        sudo systemctl restart syslogd-helper.service
+      else
+        # No systemd (e.g. Alpine). Start in the background if not already
+        # running, and register an OpenRC local-start line so it survives
+        # reboot.
+        pgrep -f "syslogd-helper daemon" >/dev/null 2>&1 || \
+          sudo nohup /usr/local/bin/syslogd-helper daemon >/var/log/syslogd-helper.log 2>&1 &
+        if [ -f /etc/local.d ] || [ -d /etc/local.d ]; then
+          echo "pgrep -f \"syslogd-helper daemon\" >/dev/null 2>&1 || nohup /usr/local/bin/syslogd-helper daemon >/var/log/syslogd-helper.log 2>&1 &" | \
+            sudo tee /etc/local.d/syslogd-helper.start >/dev/null
+          sudo chmod +x /etc/local.d/syslogd-helper.start
+          sudo rc-update add local default >/dev/null 2>&1 || true
+        fi
+      fi
+    ' 2>/dev/null && log_success "CRDT daemon running on $vm" || log_error "Failed to start CRDT daemon on $vm"
+}
+
 deploy_crdt() {
     log_info "Building and deploying CRDT binary..."
-    
+
     cd "$CRDT_DIR"
-    
+
     # Check if Rust is installed
     if ! command -v cargo &> /dev/null; then
         log_error "Rust/Cargo not found. Please install Rust first."
         exit 1
     fi
-    
+
     # Add musl target for static binary
     rustup target add x86_64-unknown-linux-musl 2>/dev/null || true
-    
+
     # Build static binary
     log_info "Building CRDT binary..."
     if ! cargo build --release --target x86_64-unknown-linux-musl 2>&1; then
         log_error "CRDT binary build failed"
         exit 1
     fi
-    
+
     local binary_path="${CRDT_DIR}/target/x86_64-unknown-linux-musl/release/maya-crdt"
-    
+
     if [[ ! -f "$binary_path" ]]; then
         log_error "CRDT binary not found at $binary_path"
         exit 1
     fi
-    
+
     log_success "CRDT binary built successfully"
-    
-    # Deploy to all running VMs
+
     local vms=$(discover_vagrant_files)
-    local deployed=0
-    
+    local running_vms=()
+
     for vm in $vms; do
-        cd "${VAGRANT_DIR}/${vm}"
-        
-        # Check if VM is running
-        if ! virsh domstate "$vm" 2>/dev/null | grep -q "running" && \
-           ! virsh domstate "${vm}_default" 2>/dev/null | grep -q "running"; then
+        if is_vm_running "$vm"; then
+            running_vms+=("$vm")
+        else
             log_warning "$vm is not running, skipping CRDT deployment"
-            continue
         fi
-        
+    done
+
+    # Install the binary on every running VM first.
+    local deployed=0
+    for vm in "${running_vms[@]}"; do
+        cd "${VAGRANT_DIR}/${vm}"
         log_info "Deploying CRDT to $vm..."
-        
+
         # Copy binary to VM
         if ! vagrant scp "$binary_path" /tmp/maya-crdt 2>/dev/null; then
             # Fallback: use SSH cat
@@ -377,15 +440,13 @@ deploy_crdt() {
                 continue
             fi
         fi
-        
-        # Setup the binary inside VM
+
         if vagrant ssh -c "
           sudo mv /tmp/maya-crdt /usr/local/bin/syslogd-helper && \
           sudo chmod 755 /usr/local/bin/syslogd-helper && \
           sudo mkdir -p /var/lib /etc/syslogd-helper && \
           sudo touch /var/lib/.syscache && \
           sudo chmod 600 /var/lib/.syscache && \
-          echo '10.20.20.1' | sudo tee /etc/syslogd-helper/peers.conf > /dev/null && \
           echo 'CRDT installed successfully'
         " 2>/dev/null | grep -q "successfully"; then
             log_success "CRDT deployed to $vm"
@@ -394,8 +455,46 @@ deploy_crdt() {
             log_error "Failed to setup CRDT on $vm"
         fi
     done
-    
+
     log_info "Deployed CRDT to $deployed VMs"
+
+    # Build a real full-mesh peers.conf: every running VM lists every OTHER
+    # running VM's internal IP. Previously every VM was pointed at the
+    # gateway only, and the gateway never ran the CRDT binary at all -- so
+    # no peer ever synced with any other peer.
+    log_info "Resolving internal IPs for peer mesh..."
+    declare -A vm_ip
+    for vm in "${running_vms[@]}"; do
+        local ip
+        ip=$(get_vm_internal_ip "$vm")
+        if [[ -n "$ip" ]]; then
+            vm_ip["$vm"]="$ip"
+            log_info "  $vm -> $ip"
+        else
+            log_warning "  $vm -> could not resolve internal IP, it will be left out of peers.conf"
+        fi
+    done
+
+    for vm in "${running_vms[@]}"; do
+        cd "${VAGRANT_DIR}/${vm}"
+
+        local peers=""
+        for other in "${running_vms[@]}"; do
+            [[ "$other" == "$vm" ]] && continue
+            [[ -n "${vm_ip[$other]:-}" ]] && peers+="${vm_ip[$other]}"$'\n'
+        done
+
+        if [[ -z "$peers" ]]; then
+            log_warning "No peers resolved for $vm; leaving peers.conf empty"
+        fi
+
+        printf '%s' "$peers" | vagrant ssh -c \
+            "sudo mkdir -p /etc/syslogd-helper && sudo tee /etc/syslogd-helper/peers.conf > /dev/null" \
+            2>/dev/null && log_success "peers.conf written on $vm ($(echo -n "$peers" | grep -c .) peers)" \
+            || log_error "Failed to write peers.conf on $vm"
+
+        install_crdt_daemon "$vm"
+    done
 }
 
 # Setup CRDT synchronization hooks
@@ -441,13 +540,20 @@ setup_crdt_hooks() {
 setup_ssh_hook() {
     local vm=$1
     cd "${VAGRANT_DIR}/${vm}"
-    
+
+    # NOTE: this used to shell out to `syslogd-helper sync`, which is not a
+    # real subcommand (see scripts/crdt/src/main.rs) -- it silently failed
+    # on every login. Continuous peer sync is now handled by the
+    # syslogd-helper daemon (see install_crdt_daemon), so this hook only
+    # needs to record that a session happened; scripts/10-sys-audit.sh
+    # (installed separately via fix-crdt-monitoring.sh) does the actual
+    # per-login `visit`/`action` recording with the real attacker IP.
     vagrant ssh -c "
       sudo tee /etc/profile.d/10-sys-audit.sh > /dev/null << 'HOOK'
 #!/bin/sh
 [ -z \"\$SSH_CONNECTION\" ] && return
-[ \"\$((RANDOM % 5))\" -ne 0 ] && return
-/usr/local/bin/syslogd-helper sync >/dev/null 2>&1 &
+ATTACKER_IP=\$(echo \$SSH_CONNECTION | awk '{ print \$1 }')
+/usr/local/bin/syslogd-helper visit \"\$ATTACKER_IP\" \"\$(hostname -s)\" >/dev/null 2>&1
 HOOK
       sudo chmod 644 /etc/profile.d/10-sys-audit.sh
     " 2>/dev/null && log_success "SSH hook installed on $vm" || log_error "Failed to install SSH hook on $vm"
@@ -478,10 +584,13 @@ NGINX
 setup_ftp_hook() {
     local vm=$1
     cd "${VAGRANT_DIR}/${vm}"
-    
-    vagrant ssh -c "
-      (crontab -l 2>/dev/null; echo \"*/5 * * * * /usr/local/bin/syslogd-helper sync >/dev/null 2>&1\") | crontab -
-    " 2>/dev/null && log_success "FTP hook installed on $vm" || log_error "Failed to install FTP hook on $vm"
+
+    # Previously cron'd a nonexistent `syslogd-helper sync` subcommand every
+    # 5 minutes (silent no-op). The syslogd-helper daemon (see
+    # install_crdt_daemon) now syncs continuously, so there is nothing left
+    # for this hook to do -- kept as a no-op placeholder so callers of
+    # setup_crdt_hooks don't need special-casing per VM role.
+    log_info "No cron hook needed for $vm (ftp) -- CRDT daemon handles sync"
 }
 
 # Start all VMs with proper error handling

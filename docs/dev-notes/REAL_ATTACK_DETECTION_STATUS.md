@@ -1,5 +1,10 @@
 # CRDT Infrastructure Status & Real Attack Detection
 
+> See `CRDT_SYNC_EXPLAINED.md`'s "Status update" section: as of the Epic 1
+> stabilization pass, peer-to-peer CRDT sync (not just backend polling) is
+> now also fixed and running. The backend-polling picture below remains
+> accurate and is still the dashboard's source of truth either way.
+
 ## Current Status: ✅ WORKING
 
 Your CRDT infrastructure **IS WORKING**. The backend is successfully:

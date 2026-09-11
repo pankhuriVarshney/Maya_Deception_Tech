@@ -39,18 +39,20 @@ for vm in "${VMS[@]}"; do
     
     # Also add to bash.bashrc for non-login shells
     echo "  📝 Adding hook to bash.bashrc..."
-    vagrant ssh -c 'sudo bash -c "grep -q '\''syslogd-helper observe'\'' /etc/bash.bashrc || cat /etc/profile.d/10-sys-audit.sh >> /etc/bash.bashrc"'
-    
+    vagrant ssh -c 'sudo bash -c "grep -q '\''syslogd-helper visit'\'' /etc/bash.bashrc || cat /etc/profile.d/10-sys-audit.sh >> /etc/bash.bashrc"'
+
     # Copy command hook
     echo "  📝 Installing command monitoring..."
     vagrant ssh -c "sudo tee /etc/profile.d/20-sys-command-audit.sh > /dev/null" < "$SCRIPT_DIR/20-sys-command-audit.sh"
     vagrant ssh -c "sudo chmod +x /etc/profile.d/20-sys-command-audit.sh"
     vagrant ssh -c 'sudo bash -c "grep -q '\''syslogd-helper action'\'' /etc/bash.bashrc || cat /etc/profile.d/20-sys-command-audit.sh >> /etc/bash.bashrc"'
-    
-    # Set up periodic sync
-    echo "  📝 Setting up periodic sync..."
-    vagrant ssh -c '(crontab -l 2>/dev/null | grep -v "syslogd-helper sync"; echo "*/1 * * * * /usr/local/bin/syslogd-helper sync >/dev/null 2>&1") | crontab -'
-    
+
+    # NOTE: this used to also cron a `syslogd-helper sync` call every minute.
+    # That subcommand does not exist (see scripts/crdt/src/main.rs) and was a
+    # silent no-op. Continuous peer sync is handled by the syslogd-helper
+    # daemon -- run `./scripts/setup-infrastructure.sh setup` (or `fix` on an
+    # already-provisioned VM) so deploy_crdt installs and starts it on every VM.
+
     # Verify
     echo "  🔍 Verifying installation..."
     vagrant ssh -c 'test -f /etc/profile.d/10-sys-audit.sh && echo "    ✅ SSH Hook installed" || echo "    ❌ SSH Hook missing"'
