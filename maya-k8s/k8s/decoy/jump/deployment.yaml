@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jump-01
+  namespace: maya-decoys
+  labels:
+    maya.decoy/type: jump
+    maya.decoy/tier: low
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: jump-01
+  template:
+    metadata:
+      labels:
+        app: jump-01
+        maya.decoy/type: jump
+    spec:
+      runtimeClassName: kata-containers
+      automountServiceAccountToken: false
+      containers:
+        - name: jump
+          image: maya-jump:dev
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 22
+              name: ssh
+          env:
+            - name: DECOY_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: jump-creds
+                  key: password 
+          resources:
+            requests:
+              cpu: 100m
+              memory: 350Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+      volumes:
+        - name: syscache
+          emptyDir: {}

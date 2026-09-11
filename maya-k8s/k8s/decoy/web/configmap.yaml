@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: web-content
+  namespace: maya-decoys
+data:
+  index.html: |
+    <!DOCTYPE html>
+    <html>
+      <head><title>Corp Internal Web Portal</title></head>
+      <body><h1>Corp Internal Web Portal</h1></body>
+    </html>

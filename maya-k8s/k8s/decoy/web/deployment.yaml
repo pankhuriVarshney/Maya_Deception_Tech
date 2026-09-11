@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web-03
+  namespace: maya-decoys
+  labels:
+    maya.decoy/type: web
+    maya.decoy/tier: low
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: web-03
+  template:
+    metadata:
+      labels:
+        app: web-03
+        maya.decoy/type: web
+    spec:
+      runtimeClassName: gvis
+      automountServiceAccountToken: false
+      containers:
+        - name: web
+          image: maya-web:dev
+          imagePullPolicy: IfNotPresent
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 22
+              name: ssh
+            - containerPort: 80
+              name: http
+          env:
+            - name: DECOY_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: web-creds
+                  key: password
+          volumeMounts:
+            - name: fake-content
+              mountPath: /var/www/html
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+      volumes:
+        - name: fake-content
+          configMap:
+            name: web-content
+        - name: syscache
+          emptyDir: {}
