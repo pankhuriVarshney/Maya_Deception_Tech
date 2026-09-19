@@ -17,7 +17,7 @@ spec:
         app: jump-01
         maya.decoy/type: jump
     spec:
-      runtimeClassName: kata-containers
+      runtimeClassName: gvisor
       automountServiceAccountToken: false
       containers:
         - name: jump

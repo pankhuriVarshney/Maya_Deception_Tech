@@ -97,6 +97,21 @@ stage_deploy() {
   kubectl --context "$BAREMETAL_CONTEXT_NAME" create namespace "$NAMESPACE" --dry-run=client -o yaml | \
     kubectl --context "$BAREMETAL_CONTEXT_NAME" apply -f -
 
+  # Every decoy Deployment references a Secret from here (jump-creds,
+  # web-creds, redis-creds via secretKeyRef) -- without applying this first,
+  # every pod below fails immediately with CreateContainerConfigError:
+  # secret not found. This directory is one level up from JUMP_DIR/WEB_DIR/
+  # REDIS_DIR (k8s/decoy/<type>), i.e. k8s/config/.
+  CONFIG_DIR="${CONFIG_DIR:-$(dirname "$(dirname "$JUMP_DIR")")/config}"
+  echo
+  echo "==> Applying shared config (breadcrumb credentials) from $CONFIG_DIR"
+  if [ -f "$CONFIG_DIR/breadcrumb-credentials.yaml" ]; then
+    kubectl --context "$BAREMETAL_CONTEXT_NAME" apply -f "$CONFIG_DIR/breadcrumb-credentials.yaml" -n "$NAMESPACE"
+  else
+    echo "  ✗ $CONFIG_DIR/breadcrumb-credentials.yaml not found -- set CONFIG_DIR explicitly and re-run this stage"
+    echo "    (pods below will fail with CreateContainerConfigError without it)"
+  fi
+
   for entry in "jump-01:$JUMP_DIR" "web-03:$WEB_DIR" "redis-01:$REDIS_DIR"; do
     NAME="${entry%%:*}"
     DIR="${entry#*:}"

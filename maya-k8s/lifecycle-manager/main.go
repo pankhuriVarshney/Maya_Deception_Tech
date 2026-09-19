@@ -18,10 +18,12 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
 )
 
 const decoyNamespace = "maya-decoys"
@@ -148,14 +150,41 @@ func (c *clientCtx) setReplicas(ctx context.Context, deployName string, replicas
 func int32Ptr(i int32) *int32 { return &i }
 
 func newClientset() (*kubernetes.Clientset, error) {
-	// In-cluster config when running as a pod; for local dev against
-	// kind/minikube, wire up clientcmd.BuildConfigFromFlags("", kubeconfigPath)
-	// here instead.
-	config, err := rest.InClusterConfig()
-	if err != nil {
-		return nil, fmt.Errorf("not running in-cluster and no local kubeconfig loader wired up: %w; "+
-			"for local dev add clientcmd.BuildConfigFromFlags(\"\", os.Getenv(\"KUBECONFIG\"))", err)
+	// In-cluster config when running as a pod inside the cluster (real
+	// deployment via k8s/config/lifecycle-manager-deployment.yaml).
+	if config, err := rest.InClusterConfig(); err == nil {
+		return kubernetes.NewForConfig(config)
 	}
+
+	// Local dev fallback: load from KUBECONFIG (or ~/.kube/config) so this
+	// can run directly on a dev machine against kind, not just in-cluster.
+	// Both the kind cluster and the bare-metal Kata cluster live as separate
+	// contexts in the same kubeconfig (see maya-k8s/kata-migrate.sh) -- set
+	// KUBECONFIG_CONTEXT to pick one explicitly; otherwise the kubeconfig's
+	// current-context is used (kind-maya-dev right after `kind create
+	// cluster`).
+	kubeconfigPath := os.Getenv("KUBECONFIG")
+	if kubeconfigPath == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return nil, fmt.Errorf("not running in-cluster, no KUBECONFIG set, and could not determine home dir for the default ~/.kube/config: %w", err)
+		}
+		kubeconfigPath = filepath.Join(home, ".kube", "config")
+	}
+
+	overrides := &clientcmd.ConfigOverrides{}
+	if ctxName := os.Getenv("KUBECONFIG_CONTEXT"); ctxName != "" {
+		overrides.CurrentContext = ctxName
+	}
+
+	config, err := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
+		&clientcmd.ClientConfigLoadingRules{ExplicitPath: kubeconfigPath},
+		overrides,
+	).ClientConfig()
+	if err != nil {
+		return nil, fmt.Errorf("not running in-cluster and failed to load kubeconfig from %s: %w", kubeconfigPath, err)
+	}
+
 	return kubernetes.NewForConfig(config)
 }
 
@@ -176,5 +205,3 @@ func main() {
 	log.Printf("decoy lifecycle manager listening on %s (namespace=%s)", addr, decoyNamespace)
 	log.Fatal(http.ListenAndServe(addr, mux))
 }
-
-var _ = os.Getenv // keep os import if unused during early edits

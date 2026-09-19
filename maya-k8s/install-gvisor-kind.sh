@@ -84,4 +84,4 @@ done
 
 echo
 echo "gVisor installed on all nodes of cluster '$CLUSTER_NAME'."
-echo "Next: kubectl apply -f k8s/runtimeclass-gvisor.yaml"
+echo "Next: kubectl apply -f k8s/runtimeclass.yaml"

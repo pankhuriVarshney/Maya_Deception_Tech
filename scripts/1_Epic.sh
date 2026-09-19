@@ -55,6 +55,20 @@ run_setup() {
     ok "cluster created"
   fi
 
+  step "Installing gVisor on kind nodes and registering the RuntimeClass"
+  # Every decoy Deployment requests runtimeClassName: gvisor. Without this,
+  # pod creation is rejected at admission (no such RuntimeClass exists yet
+  # on a fresh cluster) and `kubectl rollout status` just times out with
+  # "0 out of 1 new replicas updated" -- looks like a hang, is actually a
+  # missing prerequisite.
+  if kubectl get runtimeclass gvisor >/dev/null 2>&1; then
+    ok "gvisor RuntimeClass already present, skipping install"
+  else
+    bash maya-k8s/install-gvisor-kind.sh "$CLUSTER_NAME"
+    kubectl apply -f maya-k8s/k8s/runtimeclass.yaml
+    ok "gVisor installed on all nodes and RuntimeClass applied"
+  fi
+
   step "Applying namespaces, network policy, and shared config"
   kubectl apply -f maya-k8s/k8s/namespaces.yaml
   kubectl apply -f maya-k8s/k8s/config/breadcrumb-credentials.yaml
