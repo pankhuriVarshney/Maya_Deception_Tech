@@ -89,9 +89,19 @@ stage_init_cluster() {
 
   echo "==> Writing kubeconfig for $REAL_USER"
   mkdir -p "${REAL_HOME}/.kube"
-  cp -f /etc/kubernetes/admin.conf "${REAL_HOME}/.kube/config"
+  if [ -f "${REAL_HOME}/.kube/config" ]; then
+    # kind writes its contexts (kind-maya-dev, etc.) into this same default
+    # file. A plain overwrite here would wipe those out of kubectl's view
+    # entirely -- merge the new bare-metal context in instead.
+    echo "  Existing kubeconfig found -- merging in this cluster's context (kind contexts preserved)"
+    cp "${REAL_HOME}/.kube/config" "${REAL_HOME}/.kube/config.bak.$(date +%s)"
+    KUBECONFIG="/etc/kubernetes/admin.conf:${REAL_HOME}/.kube/config" kubectl config view --flatten > /tmp/merged-kubeconfig
+    mv /tmp/merged-kubeconfig "${REAL_HOME}/.kube/config"
+  else
+    cp -f /etc/kubernetes/admin.conf "${REAL_HOME}/.kube/config"
+  fi
   chown "$(id -u "$REAL_USER")":"$(id -g "$REAL_USER")" "${REAL_HOME}/.kube/config"
-  echo "  ✓ kubeconfig at ${REAL_HOME}/.kube/config"
+  echo "  ✓ kubeconfig at ${REAL_HOME}/.kube/config (run 'kubectl config get-contexts' to see all clusters)"
 
   echo "==> Untainting control-plane node so pods can schedule on this single node"
   KUBECONFIG="${REAL_HOME}/.kube/config" kubectl taint nodes --all node-role.kubernetes.io/control-plane- || true

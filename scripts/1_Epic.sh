@@ -104,6 +104,22 @@ run_setup() {
 
   step "Cleaning up completed/terminated pods from prior rollouts"
   kubectl delete pods -n "$NAMESPACE" --field-selector=status.phase=Succeeded --ignore-not-found=true
+
+  # The above only catches phase=Succeeded pods. A pod mid-termination from
+  # `rollout restart` is still phase=Running (it just has a deletionTimestamp
+  # set) until its terminationGracePeriodSeconds elapses, so it's invisible
+  # to that filter and lingers past "rollout status" success -- which only
+  # confirms the *new* pods are ready, not that the *old* ones are gone.
+  # Wait here so later per-pod checks and the HTTP check can't race a
+  # still-terminating old pod.
+  for dep in web-03 redis-01 jump-01; do
+    want=$(kubectl get deployment "$dep" -n "$NAMESPACE" -o jsonpath='{.spec.replicas}')
+    for _ in $(seq 1 30); do
+      have=$(kubectl get pods -n "$NAMESPACE" -l "app=$dep" --field-selector=status.phase=Running --no-headers 2>/dev/null | wc -l | tr -d ' ')
+      [ "$have" -eq "$want" ] && break
+      sleep 1
+    done
+  done
   ok "stale pods swept"
 }
 
@@ -137,17 +153,22 @@ run_verify() {
     ok "no named deception mount visible"
   fi
 
-  step "HTTP check via port-forward (5s)"
-  kubectl port-forward -n "$NAMESPACE" svc/web-03 18080:80 > /tmp/pf.log 2>&1 &
-  local pf_pid=$!
-  sleep 2
-  if curl -s -o /tmp/curl_out.html -w "%{http_code}" http://localhost:18080 | grep -q "200"; then
+  step "HTTP check (in-sandbox, via /dev/tcp)"
+  # kubectl port-forward can't be used here: gVisor runs its own userspace
+  # netstack, so a process's sockets (nginx included) live inside the
+  # Sentry, not in the host kernel's view of the pod's network namespace.
+  # port-forward's nsenter-based loopback connect never sees them --
+  # "connection refused" even when nginx is completely healthy. Talking to
+  # it through the sandbox's own shell via runsc exec sidesteps that
+  # entirely and is a legitimate reachability check either way.
+  if kubectl exec -n "$NAMESPACE" deploy/web-03 -- bash -c \
+      'exec 3<>/dev/tcp/127.0.0.1/80 && printf "GET / HTTP/1.0\r\n\r\n" >&3 && head -1 <&3' \
+      2>/tmp/http_check.log | grep -q "200"; then
     ok "web-03 served HTTP 200"
   else
     bad "web-03 did not respond with HTTP 200"
+    sed 's/^/      /' /tmp/http_check.log
   fi
-  kill "$pf_pid" 2>/dev/null || true
-  wait "$pf_pid" 2>/dev/null || true
 
   # ---- summary --------------------------------------------------------
   echo

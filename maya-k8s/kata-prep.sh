@@ -192,7 +192,7 @@ stage_verify() {
   ctr image pull docker.io/library/busybox:latest >/dev/null
 
   echo "==> Running container under the kata runtime"
-  GUEST_KERNEL=$(ctr run --rm --runtime io.containerd.run.kata.v2 \
+  GUEST_KERNEL=$(ctr run --rm --runtime io.containerd.kata.v2 \
     docker.io/library/busybox:latest kata-smoke-test uname -r)
 
   echo "  Guest kernel: $GUEST_KERNEL"

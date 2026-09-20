@@ -47,14 +47,33 @@ for node in $NODES; do
     TMP_DIR=\$(mktemp -d)
     trap 'rm -rf \"\$TMP_DIR\"' EXIT
 
-    curl -fsSL \${URL_BASE}/runsc -o \"\$TMP_DIR/runsc\"
-    curl -fsSL \${URL_BASE}/containerd-shim-runsc-v1 -o \"\$TMP_DIR/containerd-shim-runsc-v1\"
-    chmod +x \"\$TMP_DIR/runsc\" \"\$TMP_DIR/containerd-shim-runsc-v1\"
+    # As of 2026-07, gVisor stopped publishing runsc / containerd-shim-runsc-v1
+    # as loose files -- they're now bundled into a single tarball alongside a
+    # gvisor-bin/ sidecar directory that runsc looks for next to itself at
+    # runtime. Using .tar.bz2 (not .tar.zstd) since it doesn't depend on a
+    # zstd binary being present on the minimal kind node image.
+    curl -fsSL \${URL_BASE}/gvisor.tar.bz2 -o \"\$TMP_DIR/gvisor.tar.bz2\"
+    curl -fsSL \${URL_BASE}/gvisor.tar.bz2.sha512 -o \"\$TMP_DIR/gvisor.tar.bz2.sha512\"
+    (cd \"\$TMP_DIR\" && sha512sum -c gvisor.tar.bz2.sha512)
+
+    # The kind node image doesn't ship bzip2 by default -- tar shells out to
+    # it for -j/--bzip2 rather than linking it in, so without the binary
+    # present tar fails with 'Cannot exec: No such file or directory' even
+    # though the tarball downloaded and verified fine.
+    if ! command -v bzip2 >/dev/null 2>&1; then
+      apt-get update -qq && apt-get install -y -qq bzip2 >/dev/null
+    fi
+
+    mkdir -p \"\$TMP_DIR/extracted\"
+    tar -xjf \"\$TMP_DIR/gvisor.tar.bz2\" -C \"\$TMP_DIR/extracted\"
+    chmod +x \"\$TMP_DIR/extracted/runsc\" \"\$TMP_DIR/extracted/containerd-shim-runsc-v1\"
 
     # Atomic swap -- immune to ETXTBSY even if the old binary is
     # currently running/open under containerd.
-    mv \"\$TMP_DIR/runsc\" /usr/local/bin/runsc
-    mv \"\$TMP_DIR/containerd-shim-runsc-v1\" /usr/local/bin/containerd-shim-runsc-v1
+    mv \"\$TMP_DIR/extracted/runsc\" /usr/local/bin/runsc
+    mv \"\$TMP_DIR/extracted/containerd-shim-runsc-v1\" /usr/local/bin/containerd-shim-runsc-v1
+    rm -rf /usr/local/bin/gvisor-bin
+    mv \"\$TMP_DIR/extracted/gvisor-bin\" /usr/local/bin/gvisor-bin
 
     /usr/local/bin/runsc --version
   "
