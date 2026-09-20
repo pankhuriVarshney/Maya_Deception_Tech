@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/hooks/use-toast"
+import { getApiHttpBase } from "@/lib/api-base"
 import { 
   Play, 
   ShieldAlert, 
@@ -53,7 +54,7 @@ export function AttackSimulationControls() {
   const [decoySummary, setDecoySummary] = useState<DecoyBlueprintSummary | null>(null)
   const [pendingApplyBlueprintId, setPendingApplyBlueprintId] = useState<string | null>(null)
   const { toast } = useToast()
-  const decoyApiBaseUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3001"
+  const decoyApiBaseUrl = getApiHttpBase()
   const industryBadgeLabel: Record<string, string> = {
     fintech: "FinTech",
     healthcare: "Healthcare",

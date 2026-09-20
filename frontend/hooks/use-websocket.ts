@@ -1,15 +1,15 @@
 "use client"
 
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { getApiWsBase } from '@/lib/api-base';
 
 export function useWebSocket(onMessage?: (data: any) => void) {
   const [connected, setConnected] = useState(false);
   const ws = useRef<WebSocket | null>(null);
 
   useEffect(() => {
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://backend:3001';
-    const wsUrl = `${apiUrl.replace(/^http/, 'ws')}/ws`;
-    
+    const wsUrl = `${getApiWsBase()}/ws`;
+
     ws.current = new WebSocket(wsUrl);
 
     ws.current.onopen = () => {

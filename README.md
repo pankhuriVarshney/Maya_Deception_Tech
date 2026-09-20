@@ -1,13 +1,22 @@
 ## Quick Start (Docker)
 
-> No Vagrant, no KVM, no Rust required. Runs anywhere Docker is installed.
+> No Vagrant, no KVM, no Rust required. Runs on any device with Docker installed — nothing else to configure.
 
 1. Clone the repo
-2. Copy the env file: `cp .env.example .env`
-3. Start everything: `docker compose up --build`
-4. Open the dashboard: http://localhost:3000
+2. Start everything: `docker compose up --build`
+3. Open the dashboard: http://localhost:3000
 
-The dashboard loads with simulated attacker data automatically.
+The dashboard loads with simulated attacker data automatically. Every setting has a working
+default, so step 2 is genuinely all you need on a brand-new machine — no `.env` file required.
+
+**Accessing it from another device** (phone, another computer on the same network): open
+`http://<this-machine's-LAN-IP>:3000` instead of `localhost`. The dashboard automatically talks to
+the right backend address either way — no config change needed.
+
+**Optional overrides**: copy `.env.example` to `.env` if you want to customize anything (e.g. set
+`OPENAI_API_KEY` for LLM-generated decoy blueprints — it works fine without one, just with a
+simpler deterministic generator instead).
+
 To connect real honeypot VMs, see [Infrastructure Setup](./simulations/README.md).
 
 # Maya — Autonomous Deception Fabric

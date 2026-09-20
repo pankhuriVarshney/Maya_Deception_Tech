@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge"
 import { useSharedWebSocket } from "@/hooks/use-shared-websocket"
 import { Activity, Server, Database, Wifi, WifiOff } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { getApiHttpBase } from "@/lib/api-base"
 
 export function SystemHealthIndicator() {
   const { connected } = useSharedWebSocket()
@@ -22,7 +23,7 @@ export function SystemHealthIndicator() {
       const startTime = Date.now()
 
       try {
-        const res = await fetch("http://localhost:3001/health", {
+        const res = await fetch(`${getApiHttpBase()}/health`, {
           cache: "no-store",
           signal: AbortSignal.timeout(5000),
         })

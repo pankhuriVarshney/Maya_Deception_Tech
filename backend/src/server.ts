@@ -30,9 +30,16 @@ const server = createServer(app);
 const PORT = Number(process.env.PORT || 3001);
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/maya_deception';
 const isSimulationMode = process.env.SIMULATION_MODE === 'true';
-const corsOrigins = process.env.CORS_ORIGINS
+// Without CORS_ORIGINS set explicitly, allow any origin (reflected, not
+// wildcarded, so credentials still work). This exists so the dashboard
+// works out of the box from localhost, a LAN IP, or any other device
+// without per-machine config -- there's no user data/auth to protect here
+// (see the "no API authentication" note in the README) so an open CORS
+// policy doesn't add real risk. Set CORS_ORIGINS to a comma-separated list
+// to lock it down for anything more production-like.
+const corsOrigins: string[] | boolean = process.env.CORS_ORIGINS
   ? process.env.CORS_ORIGINS.split(',').map(origin => origin.trim()).filter(Boolean)
-  : ['http://localhost:3000', 'http://localhost:5173'];
+  : true;
 
 cron.schedule('0 3 * * *', async () => {
   logger.info('[Scheduler] Starting daily MITRE sync...');

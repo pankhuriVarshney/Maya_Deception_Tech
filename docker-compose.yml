@@ -26,7 +26,15 @@ services:
       SIMULATION_MODE: ${SIMULATION_MODE:-true}
       CRDT_SYNC_INTERVAL: ${CRDT_SYNC_INTERVAL:-10000}
       JWT_SECRET: ${JWT_SECRET:-dev-secret-change-in-production}
-      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+      # Left empty by default -- the backend falls back to a permissive,
+      # reflected-origin CORS policy so the dashboard works from
+      # localhost, a LAN IP, or any other device with zero config. Set
+      # CORS_ORIGINS in a .env file (comma-separated) to lock it down.
+      CORS_ORIGINS: ${CORS_ORIGINS:-}
+      # Optional -- decoy generation falls back to a deterministic
+      # generator when unset, no key required to run the app.
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
     depends_on:
       mongodb:
         condition: service_healthy

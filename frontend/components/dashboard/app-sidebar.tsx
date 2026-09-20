@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Activity, Gauge, Server, ShieldAlert, Shield, Swords } from "lucide-react"
+import { Activity, Gauge, Server, ShieldAlert, Shield, Swords, type LucideIcon } from "lucide-react"
 
 import {
   Sidebar,
@@ -16,13 +16,20 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
 
-const NAV_ITEMS = [
+type NavItem = {
+  href: string
+  label: string
+  icon: LucideIcon
+  exact?: boolean
+}
+
+const NAV_ITEMS: NavItem[] = [
   { href: "/dashboard", label: "Overview", icon: Gauge, exact: true },
   { href: "/dashboard/attackers", label: "Attackers", icon: ShieldAlert },
   { href: "/dashboard/activity", label: "Live Activity", icon: Activity },
   { href: "/dashboard/infrastructure", label: "Infrastructure", icon: Server },
   { href: "/dashboard/simulations", label: "Simulations", icon: Swords },
-] as const
+]
 
 export function AppSidebar() {
   const pathname = usePathname()
