@@ -30,16 +30,16 @@ type NavbarProps = {
   onExport?: () => void
   onRefresh?: () => void
   exportDisabled?: boolean
+  leading?: React.ReactNode
 }
-export function Navbar({ title = "MAYA", onExport, onRefresh, exportDisabled }: NavbarProps) {
+export function Navbar({ title = "MAYA", onExport, onRefresh, exportDisabled, leading }: NavbarProps) {
   const { runningCount, totalVMs, totalAttackers, wsConnected } = useVMStatus()
  const { theme, setTheme } = useTheme()
 
   return (
-    
-    // <header className="flex items-center justify-between px-6 py-3 border-b border-border bg-card">
        <header className="flex items-center justify-between px-6 py-3 border-b border-border bg-card">
       <div className="flex items-center gap-4">
+        {leading}
         <div className="flex items-center gap-2">
           <Shield className="h-7 w-7 text-primary" />
           <span className="text-xl font-bold tracking-wide text-foreground">{title}</span>
