@@ -23,7 +23,6 @@ spec:
         - name: web
           image: maya-web:dev
           imagePullPolicy: IfNotPresent
-          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 22
               name: ssh
@@ -35,9 +34,13 @@ spec:
                 secretKeyRef:
                   name: web-creds
                   key: password
+            - name: MAYA_STATE_FILE
+              value: /var/lib/maya/.syscache
           volumeMounts:
             - name: fake-content
               mountPath: /var/www/html
+            - name: syscache
+              mountPath: /var/lib/maya
           resources:
             requests:
               cpu: 100m

@@ -31,7 +31,12 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: jump-creds
-                  key: password 
+                  key: password
+            - name: MAYA_STATE_FILE
+              value: /var/lib/maya/.syscache
+          volumeMounts:
+            - name: syscache
+              mountPath: /var/lib/maya
           resources:
             requests:
               cpu: 100m

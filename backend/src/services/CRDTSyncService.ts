@@ -217,8 +217,15 @@ export class CRDTSyncService extends EventEmitter {
 
   private async getCrdtState(vmPath: string) {
     try {
+      // Read the raw state file directly rather than shelling out to
+      // `syslogd-helper stats` -- that subcommand prints a human-readable
+      // summary (see scripts/crdt/src/main.rs), not JSON, so JSON.parse()
+      // below was silently throwing on every real VM and falling back to
+      // all-zeros. The state file itself is exactly what MayaState
+      // serializes via serde_json (scripts/crdt/src/lib.rs), so this is
+      // both simpler and actually correct.
       const { stdout } = await execAsync(
-        `cd "${vmPath}" && vagrant ssh -c "if command -v syslogd-helper >/dev/null 2>&1; then sudo syslogd-helper stats 2>/dev/null; else echo '{}'; fi" 2>/dev/null`,
+        `cd "${vmPath}" && vagrant ssh -c "sudo cat /var/lib/.syscache 2>/dev/null || echo '{}'" 2>/dev/null`,
         { timeout: 8000, killSignal: 'SIGTERM' }
       );
       const cleaned = stdout.split('\n')
@@ -230,15 +237,19 @@ export class CRDTSyncService extends EventEmitter {
         return { attackers: 0, credentials: 0, sessions: 0, hash: '' };
       }
 
-      const stats = JSON.parse(cleaned);
+      const state = JSON.parse(cleaned);
       return {
-        attackers: Object.keys(stats.attackers || {}).length,
-        credentials: Object.keys(stats.stolen_creds?.adds || {}).length,
-        sessions: Object.keys(stats.active_sessions?.entries || {}).length,
-        hash: stats.state_hash || ''
+        attackers: Object.keys(state.attackers || {}).length,
+        credentials: Object.keys(state.stolen_creds?.adds || {}).length,
+        sessions: Object.keys(state.active_sessions?.entries || {}).length,
+        // MayaState doesn't serialize a hash field (it's computed on demand
+        // by the Rust side's .hash() method, not stored) -- there's nothing
+        // to read here without re-hashing the JSON ourselves, which isn't
+        // worth it for a display-only field.
+        hash: ''
       };
     } catch (error) {
-      logger.debug(`CRDT stats lookup failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      logger.debug(`CRDT state lookup failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
       return { attackers: 0, credentials: 0, sessions: 0, hash: '' };
     }
   }

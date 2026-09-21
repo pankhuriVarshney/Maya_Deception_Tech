@@ -23,7 +23,6 @@ spec:
         - name: redis
           image: maya-redis:dev
           imagePullPolicy: IfNotPresent
-          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 22
               name: ssh
@@ -34,7 +33,12 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: redis-creds
-                  key: password 
+                  key: password
+            - name: MAYA_STATE_FILE
+              value: /var/lib/maya/.syscache
+          volumeMounts:
+            - name: syscache
+              mountPath: /var/lib/maya
           resources:
             requests:
               cpu: 100m

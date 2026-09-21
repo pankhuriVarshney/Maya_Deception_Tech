@@ -35,9 +35,16 @@ kubectl apply -f k8s/config/breadcrumb-credentials.yaml
 kubectl apply -f k8s/config/syslogd-helper-configmap.yaml
 
 # 3. Build decoy images and load them into kind (no registry needed for local dev)
-docker build -t maya-web:dev docker/web
-docker build -t maya-redis:dev docker/redis
-docker build -t maya-jump:dev docker/jump
+#    NOTE: run these three build commands from the repo root, not from
+#    maya-k8s/ -- each Dockerfile has a stage that compiles the CRDT engine
+#    from ../scripts/crdt/, which is only reachable from the root context.
+#    (see scripts/1_Epic.sh for a version of this whole flow that does the
+#    cd for you)
+cd ..
+docker build -t maya-web:dev -f maya-k8s/docker/web/Dockerfile .
+docker build -t maya-redis:dev -f maya-k8s/docker/redis/Dockerfile .
+docker build -t maya-jump:dev -f maya-k8s/docker/jump/Dockerfile .
+cd maya-k8s
 kind load docker-image maya-web:dev --name maya-dev
 kind load docker-image maya-redis:dev --name maya-dev
 kind load docker-image maya-jump:dev --name maya-dev

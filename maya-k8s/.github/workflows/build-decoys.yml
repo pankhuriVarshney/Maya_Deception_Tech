@@ -25,17 +25,28 @@ jobs:
     strategy:
       matrix:
         include:
+          # context is the repo root (not docker/<type>/) because each decoy
+          # Dockerfile has a stage that compiles the CRDT engine from
+          # scripts/crdt/, which only the root context can reach. This also
+          # means this workflow only fires correctly from a checkout whose
+          # root is the Maya_Deception_Tech monorepo -- if this file is ever
+          # picked up from a standalone maya-k8s repo instead, these paths
+          # need adjusting (and note: GitHub only auto-discovers workflows
+          # under <repo-root>/.github/workflows/, not a nested
+          # maya-k8s/.github/workflows/ -- this file needs to live at the
+          # monorepo root to run automatically at all).
           - name: maya-web-decoy
-            context: docker/web-decoy
+            dockerfile: maya-k8s/docker/web/Dockerfile
             smoke_port: 80
           - name: maya-redis-decoy
-            context: docker/redis-decoy
+            dockerfile: maya-k8s/docker/redis/Dockerfile
             smoke_port: 6379
           - name: maya-jump-decoy
-            context: docker/jump-decoy
+            dockerfile: maya-k8s/docker/jump/Dockerfile
             smoke_port: 22
           - name: maya-lifecycle-manager
-            context: lifecycle-manager
+            dockerfile: maya-k8s/lifecycle-manager/Dockerfile
+            context: maya-k8s/lifecycle-manager
             smoke_port: "" # no HTTP smoke test yet, no k8s context in CI
 
     steps:
@@ -52,7 +63,8 @@ jobs:
         run: |
           docker build -t ${{ env.REGISTRY }}/${{ env.ORG }}/${{ matrix.name }}:${{ github.sha }} \
             -t ${{ env.REGISTRY }}/${{ env.ORG }}/${{ matrix.name }}:latest \
-            ${{ matrix.context }}
+            -f ${{ matrix.dockerfile }} \
+            ${{ matrix.context || '.' }}
 
       - name: Smoke test container starts and port opens
         if: matrix.smoke_port != ''

@@ -8,7 +8,18 @@ use sha2::{Sha256, Digest};
 use std::fs::OpenOptions;
 use std::io::Write;
 
-const STATE_FILE: &str = "/var/lib/.syscache";
+// Overridable via MAYA_STATE_FILE so this same binary can run inside a K8s
+// pod (where /var/lib can't be safely replaced wholesale by an emptyDir
+// mount -- it would shadow apt/dpkg/ssh state baked into the image) as well
+// as on a Vagrant VM (where /var/lib/.syscache is just a normal file on the
+// VM's own persistent disk, no volume gymnastics needed). Computed once via
+// OnceLock so every call site can keep using a plain &str, unchanged.
+fn state_file() -> &'static str {
+    static STATE_FILE: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    STATE_FILE.get_or_init(|| {
+        std::env::var("MAYA_STATE_FILE").unwrap_or_else(|_| "/var/lib/.syscache".to_string())
+    })
+}
 const LOG_FILE: &str = "/var/log/syslogd-helper.log";
 
 // Simple logging function that writes to a file instead of stderr
@@ -147,53 +158,53 @@ fn main() {
         .map(|h| h.to_string_lossy().to_string())
         .unwrap_or_else(|_| "unknown".to_string());
     
-    let mut state = MayaState::load(STATE_FILE, &node_id);
+    let mut state = MayaState::load(state_file(), &node_id);
 
     match args.get(1).map(|s| s.as_str()) {
         Some("visit") => {
             if let (Some(attacker_ip), Some(decoy)) = (args.get(2), args.get(3)) {
                 state.observe_visit(attacker_ip, decoy);
-                state.save(STATE_FILE);
+                state.save(state_file());
                 // Only print to stdout for direct commands, not for daemon
                 println!("Recorded visit: attacker={} decoy={}", attacker_ip, decoy);
             } else if let Some(decoy) = args.get(2) {
                 let attacker = detect_attacker_id();
                 eprintln!("WARNING: Using auto-detected attacker IP: {}", attacker);
                 state.observe_visit(&attacker, decoy);
-                state.save(STATE_FILE);
+                state.save(state_file());
             }
         }
         
         Some("action") => {
             if let (Some(attacker_ip), Some(decoy), Some(action)) = (args.get(2), args.get(3), args.get(4)) {
                 state.record_action(attacker_ip, decoy, action);
-                state.save(STATE_FILE);
+                state.save(state_file());
                 println!("Recorded action: attacker={} decoy={} action={}", attacker_ip, decoy, action);
             } else if let (Some(decoy), Some(action)) = (args.get(2), args.get(3)) {
                 let attacker = detect_attacker_id();
                 eprintln!("WARNING: Using auto-detected attacker IP: {}", attacker);
                 state.record_action(&attacker, decoy, action);
-                state.save(STATE_FILE);
+                state.save(state_file());
             }
         }
         
         Some("move") => {
             if let (Some(attacker_ip), Some(location)) = (args.get(2), args.get(3)) {
                 state.update_location(attacker_ip, location);
-                state.save(STATE_FILE);
+                state.save(state_file());
                 println!("Recorded move: attacker={} location={}", attacker_ip, location);
             } else if let Some(location) = args.get(2) {
                 let attacker = detect_attacker_id();
                 eprintln!("WARNING: Using auto-detected attacker IP: {}", attacker);
                 state.update_location(&attacker, location);
-                state.save(STATE_FILE);
+                state.save(state_file());
             }
         }
         
         Some("cred") => {
             if let Some(cred) = args.get(2) {
                 state.add_cred(cred);
-                state.save(STATE_FILE);
+                state.save(state_file());
                 println!("Recorded credential: {}", cred);
             }
         }
@@ -201,7 +212,7 @@ fn main() {
         Some("session") => {
             if let (Some(host), Some(session)) = (args.get(2), args.get(3)) {
                 state.add_session(host, session);
-                state.save(STATE_FILE);
+                state.save(state_file());
                 println!("Recorded session: {} -> {}", host, session);
             }
         }
@@ -211,7 +222,7 @@ fn main() {
                 let remote = MayaState::load(path, &node_id);
                 let before_hash = state.hash();
                 state.merge(remote);
-                state.save(STATE_FILE);
+                state.save(state_file());
                 let after_hash = state.hash();
                 println!("Merge complete: {} -> {}", before_hash, after_hash);
             }
@@ -295,7 +306,7 @@ fn main() {
 }
 
 fn run_daemon(mut state: MayaState) {
-    let mut last_hash = hash_file(STATE_FILE);
+    let mut last_hash = hash_file(state_file());
     let mut cycle_count = 0;
 
     log_to_file(&format!("Starting CRDT daemon on {}", state.node_id));
@@ -305,13 +316,13 @@ fn run_daemon(mut state: MayaState) {
         log_to_file(&format!("Sync cycle {} starting...", cycle_count));
 
         // 🔥 1. ALWAYS reload latest state from disk
-        state = MayaState::load(STATE_FILE, &state.node_id);
+        state = MayaState::load(state_file(), &state.node_id);
 
         // 🔥 2. Sync if file changed
-        sync_with_peers(STATE_FILE, &mut last_hash);
+        sync_with_peers(state_file(), &mut last_hash);
 
         // 🔥 3. Reload again in case merge modified file
-        state = MayaState::load(STATE_FILE, &state.node_id);
+        state = MayaState::load(state_file(), &state.node_id);
 
         // 🔥 4. Process SSH log (only for new attackers)
         if let Ok(log) = std::fs::read_to_string("/var/log/auth.log") {
@@ -333,10 +344,10 @@ fn run_daemon(mut state: MayaState) {
         }
 
         // 🔥 5. Save only if we actually changed state
-        state.save(STATE_FILE);
+        state.save(state_file());
 
         // 🔥 6. Update hash AFTER save
-        last_hash = hash_file(STATE_FILE);
+        last_hash = hash_file(state_file());
 
         log_to_file(&format!(
             "Sync cycle {} complete. Current attackers: {}",

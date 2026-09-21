@@ -76,9 +76,12 @@ run_setup() {
   ok "base config applied"
 
   step "Building decoy images"
-  docker build -t maya-web:dev maya-k8s/docker/web
-  docker build -t maya-redis:dev maya-k8s/docker/redis
-  docker build -t maya-jump:dev maya-k8s/docker/jump
+  # Build context is the repo root, not maya-k8s/docker/<type>/ -- each
+  # Dockerfile now has a stage that compiles the real CRDT engine from
+  # scripts/crdt/, which only the root context can reach.
+  docker build -t maya-web:dev -f maya-k8s/docker/web/Dockerfile .
+  docker build -t maya-redis:dev -f maya-k8s/docker/redis/Dockerfile .
+  docker build -t maya-jump:dev -f maya-k8s/docker/jump/Dockerfile .
   ok "images built"
 
   step "Loading images into kind"
