@@ -194,12 +194,13 @@ async function start() {
       const syncInterval = parseInt(process.env.CRDT_SYNC_INTERVAL || '10000', 10);
       crdtSync.startSyncLoop(syncInterval);
 
-      // Additive to the Vagrant fabric above -- no-ops cleanly if no
-      // kubeconfig/cluster is reachable (e.g. the lightweight Docker
-      // Compose demo path, which has no kubectl access at all).
-      if (!isSimulationMode) {
-        k8sDiscovery.startPolling();
-      }
+      // Additive to the Vagrant fabric above -- unconditional (not gated on
+      // SIMULATION_MODE, unlike crdtSync) because it's already self-gating:
+      // K8sClient.getTierClusters() returns an empty array and this becomes
+      // a no-op if no kubeconfig/cluster is reachable (e.g. the lightweight
+      // Docker Compose demo path, which has no kubectl access unless the
+      // container is given one -- see docs/ARCHITECTURE.md).
+      k8sDiscovery.startPolling();
     });
   } catch (error) {
     logger.error('Failed to start server:', error);

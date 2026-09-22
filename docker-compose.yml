@@ -35,12 +35,24 @@ services:
       # generator when unset, no key required to run the app.
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+      # Points K8sClient at the internal kubeconfig below rather than the
+      # default ~/.kube/config -- that one addresses the kind API server as
+      # 127.0.0.1:<host-port>, which inside this container means itself, not
+      # the host. Generate the internal kubeconfig with:
+      #   kind get kubeconfig --internal --name maya-dev > .kube/kind-internal-config
+      # K8sClient logs a harmless warning and disables K8s discovery
+      # (Vagrant fabric unaffected) until that file exists.
+      KUBECONFIG: ${KUBECONFIG:-/kube/kind-internal-config}
+      K8S_TIER_CONTEXTS: ${K8S_TIER_CONTEXTS:-gvisor=kind-maya-dev}
+    volumes:
+      - ./.kube:/kube:ro
     depends_on:
       mongodb:
         condition: service_healthy
     restart: unless-stopped
     networks:
       - maya_network
+      - kind
 
   frontend:
     build:
@@ -61,3 +73,9 @@ volumes:
 networks:
   maya_network:
     driver: bridge
+  # The Docker network `kind` creates automatically for its node containers
+  # -- joining it lets the backend reach the control-plane container by name
+  # (as the internal kubeconfig above addresses it). Must already exist
+  # (i.e. the kind cluster is up) before `docker-compose up`.
+  kind:
+    external: true

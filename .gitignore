@@ -11,3 +11,5 @@ backend/dist/
 backend/logs/
 .vagrant/
 *.tsbuildinfo
+# Generated kind kubeconfig for the docker-compose backend (see docker-compose.yml)
+/.kube/
