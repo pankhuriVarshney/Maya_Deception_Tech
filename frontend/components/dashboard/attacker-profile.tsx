@@ -2,6 +2,7 @@
 
 import { Skeleton } from "@/components/ui/skeleton"
 import type { Attacker } from "@/lib/dashboard/types"
+import { TierBadge } from "./tier-badge"
 
 type AttackerProfileProps = {
   attacker: Attacker | null
@@ -55,6 +56,10 @@ export function AttackerProfile({ attacker, loading }: AttackerProfileProps) {
         <div className="flex items-center justify-between">
           <span className="text-muted-foreground">Entry Point:</span>
           <span className="font-semibold text-foreground">{attacker.entryPoint}</span>
+        </div>
+        <div className="flex items-center justify-between">
+          <span className="text-muted-foreground">Deception Fabric:</span>
+          <TierBadge platform={attacker.platform} tier={attacker.tier} />
         </div>
         <div className="flex items-center justify-between">
           <span className="text-muted-foreground">Current Privilege:</span>

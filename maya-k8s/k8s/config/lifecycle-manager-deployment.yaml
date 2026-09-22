@@ -48,7 +48,11 @@ spec:
       serviceAccountName: decoy-lifecycle-manager
       containers:
         - name: lifecycle-manager
-          image: ghcr.io/Maya/maya-lifecycle-manager:latest
+          # Locally-buildable dev tag, same convention as the decoy images
+          # (see scripts/1_Epic.sh) -- no registry/CI push required to run
+          # this. Point at a real ghcr.io/<org>/... tag once one exists.
+          image: maya-lifecycle-manager:dev
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8081
 ---

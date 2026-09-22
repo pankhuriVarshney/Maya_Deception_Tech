@@ -7,6 +7,7 @@ import { Progress } from "@/components/ui/progress"
 import { Skeleton } from "@/components/ui/skeleton"
 import type { AttackerSummary, ConcernLevel, EngagementLevel } from "@/types"
 import { cn } from "@/lib/utils"
+import { TierBadge } from "./tier-badge"
 
 type AttackersListProps = {
   attackers: AttackerSummary[] | null
@@ -108,8 +109,11 @@ export function AttackersList({ attackers, loading }: AttackersListProps) {
                   </Badge>
                 </div>
               </div>
-              <div className="text-sm text-muted-foreground">
-                Current Decoy Host: <span className="text-foreground font-medium">{a.currentHost}</span>
+              <div className="flex items-center justify-between gap-2 text-sm text-muted-foreground">
+                <span>
+                  Current Decoy Host: <span className="text-foreground font-medium">{a.currentHost}</span>
+                </span>
+                <TierBadge platform={a.platform} tier={a.tier} />
               </div>
             </CardHeader>
             <CardContent className="space-y-3">

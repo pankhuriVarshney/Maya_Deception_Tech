@@ -1,13 +1,17 @@
 import { Router, Request, Response } from 'express';
 import { RealSimulationService } from '../services/RealSimulationService';
+import { K8sSimulationService } from '../services/K8sSimulationService';
 import { asyncHandler } from '../middleware/errorHandler';
 import { logger } from '../utils/logger';
 
 const router = Router();
 const simulationService = new RealSimulationService();
+const k8sSimulationService = new K8sSimulationService();
 
-// Valid VM name pattern (security: prevent path traversal)
-const VM_NAME_PATTERN = /^fake-[a-z0-9-]+$/i;
+// Valid target name pattern (security: prevent path traversal / injection).
+// Matches both Vagrant VM names (fake-web-01) and K8s decoy app names
+// (web-03, jump-01) -- effectively a DNS-1123-label-like pattern.
+const VM_NAME_PATTERN = /^[a-z0-9][a-z0-9-]*$/i;
 const VALID_SCAN_TYPES = ['internal', 'external', 'full', 'stealth'];
 const VALID_TOOLS = ['mimikatz', 'lazagne', 'gsecdump', 'pwdump'];
 const VALID_METHODS = ['sudo-exploit', 'kernel-exploit', 'misconfiguration', 'credential-reuse'];
@@ -84,6 +88,23 @@ router.post('/ssh-bruteforce', asyncHandler(async (req: Request, res: Response) 
 
   logger.info(`API: REAL SSH brute force simulation requested - target: ${target}, attempts: ${safeAttempts}`);
 
+  // K8s decoys take priority when the target name resolves there --
+  // otherwise fall back to the existing Vagrant path (which has its own
+  // mock fallback when the VM isn't running either).
+  await k8sSimulationService.refreshTargets();
+  if (k8sSimulationService.hasTarget(target)) {
+    const k8sResult = await k8sSimulationService.simulateSSHBruteForce({ target, attempts: safeAttempts });
+    return res.json({
+      success: true,
+      message: 'REAL SSH brute force simulation executed on K8s decoy',
+      data: k8sResult,
+      real: true,
+      platform: 'k8s',
+      attackerId: k8sResult.attackerId,
+      timestamp: new Date().toISOString()
+    });
+  }
+
   // Refresh VM cache before simulation
   await ensureVMCacheFresh();
 
@@ -94,6 +115,7 @@ router.post('/ssh-bruteforce', asyncHandler(async (req: Request, res: Response) 
     message: result.real ? 'REAL SSH brute force simulation executed on VM' : 'Mock simulation (VM not available)',
     data: result,
     real: result.real || false,
+    platform: 'vagrant',
     attackerId: result.attackerId,
     timestamp: new Date().toISOString()
   });
@@ -118,6 +140,21 @@ router.post('/lateral-movement', asyncHandler(async (req: Request, res: Response
 
   logger.info(`API: REAL lateral movement simulation requested - source: ${source}, targets: [${safeTargets.join(', ')}]`);
 
+  // K8s decoys take priority when the source resolves there.
+  await k8sSimulationService.refreshTargets();
+  if (k8sSimulationService.hasTarget(source)) {
+    const k8sResult = await k8sSimulationService.simulateLateralMovement({ source, targets: safeTargets });
+    return res.json({
+      success: true,
+      message: 'REAL lateral movement simulation executed on K8s decoys',
+      data: k8sResult,
+      real: true,
+      platform: 'k8s',
+      attackerId: k8sResult.attackerId,
+      timestamp: new Date().toISOString()
+    });
+  }
+
   // Refresh VM cache before simulation
   await ensureVMCacheFresh();
 
@@ -128,6 +165,7 @@ router.post('/lateral-movement', asyncHandler(async (req: Request, res: Response
     message: result.real ? 'REAL lateral movement simulation executed on VMs' : 'Mock simulation (VMs not available)',
     data: result,
     real: result.real || false,
+    platform: 'vagrant',
     attackerId: result.attackerId,
     timestamp: new Date().toISOString()
   });
@@ -155,6 +193,20 @@ router.post('/credential-theft', asyncHandler(async (req: Request, res: Response
 
   logger.info(`API: REAL credential theft simulation requested - target: ${target}, tool: ${safeTool}`);
 
+  await k8sSimulationService.refreshTargets();
+  if (k8sSimulationService.hasTarget(target)) {
+    const k8sResult = await k8sSimulationService.simulateCredentialTheft({ target, tool: safeTool });
+    return res.json({
+      success: true,
+      message: 'REAL credential theft simulation executed on K8s decoy',
+      data: k8sResult,
+      real: true,
+      platform: 'k8s',
+      attackerId: k8sResult.attackerId,
+      timestamp: new Date().toISOString()
+    });
+  }
+
   // Refresh VM cache before simulation
   await ensureVMCacheFresh();
 
@@ -165,6 +217,7 @@ router.post('/credential-theft', asyncHandler(async (req: Request, res: Response
     message: result.real ? 'REAL credential theft simulation executed on VM' : 'Mock simulation (VM not available)',
     data: result,
     real: result.real || false,
+    platform: 'vagrant',
     attackerId: result.attackerId,
     timestamp: new Date().toISOString()
   });
@@ -192,6 +245,20 @@ router.post('/discovery', asyncHandler(async (req: Request, res: Response) => {
 
   logger.info(`API: REAL network discovery simulation requested - source: ${source}, scanType: ${safeScanType}`);
 
+  await k8sSimulationService.refreshTargets();
+  if (k8sSimulationService.hasTarget(source)) {
+    const k8sResult = await k8sSimulationService.simulateDiscovery({ source, scanType: safeScanType });
+    return res.json({
+      success: true,
+      message: 'REAL network discovery simulation executed on K8s decoy',
+      data: k8sResult,
+      real: true,
+      platform: 'k8s',
+      attackerId: k8sResult.attackerId,
+      timestamp: new Date().toISOString()
+    });
+  }
+
   // Refresh VM cache before simulation
   await ensureVMCacheFresh();
 
@@ -202,6 +269,7 @@ router.post('/discovery', asyncHandler(async (req: Request, res: Response) => {
     message: result.real ? 'REAL network discovery simulation executed on VM' : 'Mock simulation (VM not available)',
     data: result,
     real: result.real || false,
+    platform: 'vagrant',
     attackerId: result.attackerId,
     timestamp: new Date().toISOString()
   });
@@ -229,6 +297,20 @@ router.post('/privilege-escalation', asyncHandler(async (req: Request, res: Resp
 
   logger.info(`API: REAL privilege escalation simulation requested - target: ${target}, method: ${safeMethod}`);
 
+  await k8sSimulationService.refreshTargets();
+  if (k8sSimulationService.hasTarget(target)) {
+    const k8sResult = await k8sSimulationService.simulatePrivilegeEscalation({ target, method: safeMethod });
+    return res.json({
+      success: true,
+      message: 'REAL privilege escalation simulation executed on K8s decoy',
+      data: k8sResult,
+      real: true,
+      platform: 'k8s',
+      attackerId: k8sResult.attackerId,
+      timestamp: new Date().toISOString()
+    });
+  }
+
   // Refresh VM cache before simulation
   await ensureVMCacheFresh();
 
@@ -239,6 +321,7 @@ router.post('/privilege-escalation', asyncHandler(async (req: Request, res: Resp
     message: result.real ? 'REAL privilege escalation simulation executed on VM' : 'Mock simulation (VM not available)',
     data: result,
     real: result.real || false,
+    platform: 'vagrant',
     attackerId: result.attackerId,
     timestamp: new Date().toISOString()
   });
@@ -257,6 +340,22 @@ router.post('/full-campaign', asyncHandler(async (req: Request, res: Response) =
 
   logger.info(`API: REAL full attack campaign simulation requested - complexity: ${safeComplexity}`);
 
+  // Full campaign needs at least 2 decoys to pivot between; prefer K8s if
+  // it has enough, same "K8s first" resolution as the other scenarios.
+  await k8sSimulationService.refreshTargets();
+  if (k8sSimulationService.availableTargets().length >= 2) {
+    const k8sResult = await k8sSimulationService.simulateFullCampaign({ complexity: safeComplexity });
+    return res.json({
+      success: true,
+      message: 'REAL full attack campaign simulation executed on K8s decoys',
+      data: k8sResult,
+      real: true,
+      platform: 'k8s',
+      attackerId: k8sResult.attackerId,
+      timestamp: new Date().toISOString()
+    });
+  }
+
   // Refresh VM cache before simulation
   await ensureVMCacheFresh();
 
@@ -267,6 +366,7 @@ router.post('/full-campaign', asyncHandler(async (req: Request, res: Response) =
     message: result.real ? 'REAL full attack campaign simulation executed' : 'Mock simulation (VMs not available)',
     data: result,
     real: result.real || false,
+    platform: 'vagrant',
     attackerId: result.attackerId,
     timestamp: new Date().toISOString()
   });
@@ -353,10 +453,21 @@ router.post('/vm-cache/populate', asyncHandler(async (req: Request, res: Respons
 router.post('/vm-cache/refresh', asyncHandler(async (req: Request, res: Response) => {
   logger.info('Force refreshing VM cache...');
   const result = await (simulationService as any).refreshVMs();
-  
+
   res.json({
     success: true,
     message: `Refreshed VM cache: ${result.count} VMs found`,
+    data: result,
+    timestamp: new Date().toISOString()
+  });
+}));
+
+// K8s decoy targets (gVisor/Kata), analogous to /vm-cache above
+router.get('/k8s-targets', asyncHandler(async (req: Request, res: Response) => {
+  const result = await k8sSimulationService.refreshTargets();
+
+  res.json({
+    success: true,
     data: result,
     timestamp: new Date().toISOString()
   });

@@ -17,6 +17,8 @@ export type Attacker = {
   entryPoint: string
   currentPrivilege: string
   lastSeenAt: string // ISO string
+  platform?: "vagrant" | "k8s"
+  tier?: "low" | "gvisor" | "kata"
 }
 
 export type TimelineEvent = {

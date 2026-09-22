@@ -12,6 +12,7 @@ import cron from 'node-cron';
 import { errorHandler } from './middleware/errorHandler';
 import { logger } from './utils/logger';
 import { CRDTSyncService } from './services/CRDTSyncService';
+import { K8sDiscoveryService } from './services/K8sDiscoveryService';
 import { WebSocketHandler } from './websocket/WebSocketHandler';
 import { RealSimulationService } from './services/RealSimulationService';
 import { InfrastructureDiscoveryService } from './services/InfrastructureDiscoveryService';
@@ -20,6 +21,7 @@ import { seedDatabase } from './utils/seedData';
 import dashboardRoutes from './routes/dashboard';
 import simulationRoutes from './routes/simulation';
 import decoyRoutes from './routes/decoy';
+import infrastructureRoutes from './routes/infrastructure';
 import { Attacker, VMStatus } from './models';
 
 dotenv.config();
@@ -72,6 +74,7 @@ app.use(morgan('combined', { stream: { write: msg => logger.info(msg.trim()) } }
 app.use(compression());
 
 const crdtSync = new CRDTSyncService();
+const k8sDiscovery = new K8sDiscoveryService();
 const simulationService = new RealSimulationService();
 const infrastructureDiscovery = new InfrastructureDiscoveryService();
 const wsHandler = new WebSocketHandler(server, crdtSync, simulationService);
@@ -79,6 +82,7 @@ const wsHandler = new WebSocketHandler(server, crdtSync, simulationService);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/simulation', simulationRoutes);
 app.use('/api/decoy', decoyRoutes);
+app.use('/api/infrastructure', infrastructureRoutes);
 
 app.get('/health', (_req, res) => {
   res.json({
@@ -189,6 +193,13 @@ async function start() {
 
       const syncInterval = parseInt(process.env.CRDT_SYNC_INTERVAL || '10000', 10);
       crdtSync.startSyncLoop(syncInterval);
+
+      // Additive to the Vagrant fabric above -- no-ops cleanly if no
+      // kubeconfig/cluster is reachable (e.g. the lightweight Docker
+      // Compose demo path, which has no kubectl access at all).
+      if (!isSimulationMode) {
+        k8sDiscovery.startPolling();
+      }
     });
   } catch (error) {
     logger.error('Failed to start server:', error);
@@ -199,6 +210,7 @@ async function start() {
 const gracefulShutdown = async (signal: string) => {
   logger.info(`${signal} received, shutting down gracefully`);
   crdtSync.stopSyncLoop();
+  k8sDiscovery.stopPolling();
 
   server.close(async () => {
     logger.info('HTTP server closed');

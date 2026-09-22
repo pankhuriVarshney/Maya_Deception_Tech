@@ -5,6 +5,8 @@ export interface IVMStatus extends Document {
   hostname: string;
   status: 'running' | 'stopped' | 'unknown' | 'error';
   ip?: string;
+  platform: 'vagrant' | 'k8s';
+  tier?: 'low' | 'gvisor' | 'kata';
   lastSeen: Date;
   crdtState?: {
     attackers: number;
@@ -32,6 +34,8 @@ const VMStatusSchema: Schema = new Schema({
     default: 'unknown' 
   },
   ip: String,
+  platform: { type: String, enum: ['vagrant', 'k8s'], default: 'vagrant' },
+  tier: { type: String, enum: ['low', 'gvisor', 'kata'] },
   lastSeen: { type: Date, default: Date.now },
   crdtState: {
     attackers: { type: Number, default: 0 },

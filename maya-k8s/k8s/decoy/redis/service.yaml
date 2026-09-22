@@ -1,15 +1,20 @@
+# NodePort: reachable at localhost:30222 (ssh) / localhost:30637 (redis),
+# fixed to match kind's extraPortMappings (see scripts/1_Epic.sh).
 apiVersion: v1
 kind: Service
 metadata:
   name: redis-01
   namespace: maya-decoys
 spec:
+  type: NodePort
   selector:
     app: redis-01
   ports:
     - name: ssh
       port: 22
       targetPort: 22
+      nodePort: 30222
     - name: redis
       port: 6379
       targetPort: 6379
+      nodePort: 30637

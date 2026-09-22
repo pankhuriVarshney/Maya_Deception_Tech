@@ -30,6 +30,10 @@ export function mapToAttackerSummary(dbAttacker: any): any {
     concernLevel: concernLevel,
     threatConfidence: threatConfidence,
     status: dbAttacker.status || 'Active',
+
+    // Which deception fabric/tier this attacker is engaging with
+    platform: dbAttacker.platform || 'vagrant',
+    tier: dbAttacker.tier,
   };
 }
 
@@ -90,6 +94,8 @@ export async function mapToDashboardData(dbAttacker: any): Promise<any> {
       entryPoint: dbAttacker.entryPoint,
       currentPrivilege: dbAttacker.currentPrivilege,
       lastSeenAt: dbAttacker.lastSeen,
+      platform: dbAttacker.platform || 'vagrant',
+      tier: dbAttacker.tier,
     },
     timeline: events.length > 0 ? events.map((e: any) => ({
       eventId: e.eventId || e._id?.toString(),

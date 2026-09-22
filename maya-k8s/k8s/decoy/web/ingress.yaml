@@ -1,0 +1,23 @@
+# HTTP front door for the web decoy -- unclassified/default-tier traffic
+# lands here by default, playing gateway-vm's old role for the K8s fabric.
+# Non-HTTP decoys (jump's SSH, redis) can't go through an Ingress (L7 HTTP
+# only) -- see their Service definitions for NodePort instead.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: web-03
+  namespace: maya-decoys
+  annotations:
+    nginx.ingress.kubernetes.io/upstream-vhost: $host
+spec:
+  ingressClassName: nginx
+  rules:
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: web-03
+                port:
+                  number: 80

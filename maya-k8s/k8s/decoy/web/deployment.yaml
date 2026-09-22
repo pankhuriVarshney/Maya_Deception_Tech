@@ -19,6 +19,11 @@ spec:
     spec:
       runtimeClassName: gvisor
       automountServiceAccountToken: false
+      # Lets the crdt-sync sidecar below write the shared syscache emptyDir
+      # as its own non-root user -- the web container still runs as root
+      # (sshd/nginx), fsGroup just adds a supplemental group on the volume.
+      securityContext:
+        fsGroup: 10001
       containers:
         - name: web
           image: maya-web:dev
@@ -35,12 +40,12 @@ spec:
                   name: web-creds
                   key: password
             - name: MAYA_STATE_FILE
-              value: /var/lib/maya/.syscache
+              value: /var/lib/.state/.syscache
           volumeMounts:
             - name: fake-content
               mountPath: /var/www/html
             - name: syscache
-              mountPath: /var/lib/maya
+              mountPath: /var/lib/.state
           resources:
             requests:
               cpu: 100m
@@ -48,6 +53,34 @@ spec:
             limits:
               cpu: 250m
               memory: 256Mi
+        # CRDT engine, moved out of the web container entirely (see
+        # docker/crdt-sync/Dockerfile) so the binary and its process are
+        # invisible from a shell in the web container -- separate rootfs,
+        # separate PID namespace, no listening port. Shares only the
+        # syscache volume, never mounted into the web container's own
+        # filesystem beyond that one directory.
+        - name: crdt-sync
+          image: maya-crdt-sync:dev
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: MAYA_STATE_FILE
+              value: /var/lib/.state/.syscache
+          volumeMounts:
+            - name: syscache
+              mountPath: /var/lib/.state
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 50m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
       volumes:
         - name: fake-content
           configMap:

@@ -96,7 +96,7 @@ export class CRDTSyncService extends EventEmitter {
     }
   }
 
-  private async updateVMStatusInDB() {
+  async updateVMStatusInDB() {
     if (this.simulationMode) {
       await this.getSeededVMStatus();
       return;

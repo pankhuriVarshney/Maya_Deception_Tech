@@ -308,7 +308,7 @@ export class RealSimulationService extends EventEmitter {
 
         await this.executeOnVM(
           target,
-          `/usr/local/bin/syslogd-helper observe "Failed SSH login attempt ${i + 1}/${attempts} from ${attackerIp}"`
+          `/usr/local/bin/syslogd-helper action "${attackerIp}" "${target}" "ssh_login_failed:attempt_${i + 1}"`
         );
 
         // CLASSIFY with MITRE - SSH brute force is T1110
@@ -350,7 +350,7 @@ export class RealSimulationService extends EventEmitter {
       
       await this.executeOnVM(
         target,
-        `/usr/local/bin/syslogd-helper observe "Successful SSH login with credentials: ${username}:${password}"`
+        `/usr/local/bin/syslogd-helper action "${attackerIp}" "${target}" "ssh_login_success:${username}"`
       );
 
       await Credential.create({
@@ -394,10 +394,13 @@ export class RealSimulationService extends EventEmitter {
       this.emit('newEvent', successEvent);
       eventsGenerated++;
 
-      await this.executeOnVM(target, '/usr/local/bin/syslogd-helper sync >/dev/null 2>&1 &');
+      // Continuous CRDT sync is the syslogd-helper daemon's job (see
+      // scripts/setup-infrastructure.sh's install_crdt_daemon) -- `sync`
+      // was never a real subcommand (scripts/crdt/src/main.rs), so the
+      // explicit call that used to be here was a silent no-op.
 
-      this.emit('simulationComplete', { 
-        type: 'ssh-bruteforce', 
+      this.emit('simulationComplete', {
+        type: 'ssh-bruteforce',
         attackerId, 
         target,
         eventsGenerated,
@@ -500,7 +503,7 @@ export class RealSimulationService extends EventEmitter {
       // Initial access on source
       await this.executeOnVM(
         source,
-        `/usr/local/bin/syslogd-helper observe "Initial compromise from ${attackerIp}"`
+        `/usr/local/bin/syslogd-helper action "${attackerIp}" "${source}" "initial_compromise"`
       );
 
       const initialClassification = await this.mitreService.classifyEvent('initial compromise');
@@ -543,7 +546,7 @@ export class RealSimulationService extends EventEmitter {
 
         await this.executeOnVM(
           currentHost,
-          `/usr/local/bin/syslogd-helper observe "SSH pivot from ${currentHost} to ${target}"`
+          `/usr/local/bin/syslogd-helper action "${attackerIp}" "${currentHost}" "pivot_to:${target}"`
         );
 
         await this.executeOnVM(
@@ -596,9 +599,8 @@ export class RealSimulationService extends EventEmitter {
       attacker.riskLevel = 'Critical';
       await attacker.save();
 
-      for (const vm of [source, ...availableTargets]) {
-        await this.executeOnVM(vm, '/usr/local/bin/syslogd-helper sync >/dev/null 2>&1 &');
-      }
+      // Continuous CRDT sync is the syslogd-helper daemon's job now -- see
+      // the note in simulateSSHBruteForce above.
 
       this.emit('simulationComplete', {
         type: 'lateral-movement',
@@ -659,7 +661,7 @@ export class RealSimulationService extends EventEmitter {
       const mimikatzCommand = `${tool} sekurlsa::logonpasswords`;
       await this.executeOnVM(
         target,
-        `/usr/local/bin/syslogd-helper observe "${tool} execution detected - dumping credentials"`
+        `/usr/local/bin/syslogd-helper action "${attackerIp}" "${target}" "credential_dump:${tool}"`
       );
 
       // CLASSIFY credential dumping - T1003 (OS Credential Dumping)
@@ -742,7 +744,8 @@ export class RealSimulationService extends EventEmitter {
         eventsGenerated++;
       }
 
-      await this.executeOnVM(target, '/usr/local/bin/syslogd-helper sync >/dev/null 2>&1 &');
+      // Continuous CRDT sync is the syslogd-helper daemon's job now -- see
+      // the note in simulateSSHBruteForce above.
 
       this.emit('simulationComplete', {
         type: 'credential-theft',
@@ -820,7 +823,7 @@ export class RealSimulationService extends EventEmitter {
 
         await this.executeOnVM(
           source,
-          `/usr/local/bin/syslogd-helper observe "Discovery command: ${cmd.substring(0, 40)}..."`
+          `/usr/local/bin/syslogd-helper action "${attackerIp}" "${source}" "discovery:${cmd.substring(0, 40)}"`
         );
 
         const classification = await this.mitreService.classifyEvent(cmd);
@@ -853,7 +856,8 @@ export class RealSimulationService extends EventEmitter {
         await new Promise(resolve => setTimeout(resolve, 800));
       }
 
-      await this.executeOnVM(source, '/usr/local/bin/syslogd-helper sync >/dev/null 2>&1 &');
+      // Continuous CRDT sync is the syslogd-helper daemon's job now -- see
+      // the note in simulateSSHBruteForce above.
 
       this.emit('simulationComplete', {
         type: 'discovery',
@@ -963,7 +967,7 @@ export class RealSimulationService extends EventEmitter {
       // Initial user-level access
       await this.executeOnVM(
         target,
-        `/usr/local/bin/syslogd-helper observe "Initial user-level access to ${target}"`
+        `/usr/local/bin/syslogd-helper action "${attackerIp}" "${target}" "initial_user_access"`
       );
 
       const initialClassification = await this.mitreService.classifyEvent('initial user access');
@@ -997,7 +1001,7 @@ export class RealSimulationService extends EventEmitter {
 
       await this.executeOnVM(
         target,
-        `/usr/local/bin/syslogd-helper observe "Privilege escalation attempt: ${method}"`
+        `/usr/local/bin/syslogd-helper action "${attackerIp}" "${target}" "privesc_attempt:${method}"`
       );
 
       const escalateClassification = await this.mitreService.classifyEvent(method);
@@ -1029,7 +1033,7 @@ export class RealSimulationService extends EventEmitter {
       // Successful escalation
       await this.executeOnVM(
         target,
-        `/usr/local/bin/syslogd-helper observe "Successfully escalated to root privileges"`
+        `/usr/local/bin/syslogd-helper action "${attackerIp}" "${target}" "privesc_success:root"`
       );
 
       const successClassification = await this.mitreService.classifyEvent('privilege escalation successful');
@@ -1062,7 +1066,8 @@ export class RealSimulationService extends EventEmitter {
       attacker.riskLevel = 'Critical';
       await attacker.save();
 
-      await this.executeOnVM(target, '/usr/local/bin/syslogd-helper sync >/dev/null 2>&1 &');
+      // Continuous CRDT sync is the syslogd-helper daemon's job now -- see
+      // the note in simulateSSHBruteForce above.
 
       this.emit('simulationComplete', {
         type: 'privilege-escalation',
@@ -1169,7 +1174,7 @@ export class RealSimulationService extends EventEmitter {
       // Stage 1: Initial Access (fake-web-01)
       await this.executeOnVM(
         'fake-web-01',
-        `/usr/local/bin/syslogd-helper observe "Exploited public-facing application (fake-web-01)"`
+        `/usr/local/bin/syslogd-helper action "${attackerIp}" "fake-web-01" "exploited_public_app"`
       );
 
       const initialClassification = await this.mitreService.classifyEvent('web application exploit');
@@ -1226,7 +1231,7 @@ export class RealSimulationService extends EventEmitter {
       // Stage 3: Credential Theft
       await this.executeOnVM(
         'fake-web-01',
-        `/usr/local/bin/syslogd-helper observe "Found database credentials in web application config"`
+        `/usr/local/bin/syslogd-helper action "${attackerIp}" "fake-web-01" "found_db_credentials"`
       );
 
       const credClassification = await this.mitreService.classifyEvent('credential theft from config');
@@ -1278,7 +1283,7 @@ export class RealSimulationService extends EventEmitter {
 
         await this.executeOnVM(
           currentHost,
-          `/usr/local/bin/syslogd-helper observe "Pivoted to ${target} using stolen SSH credentials"`
+          `/usr/local/bin/syslogd-helper action "${attackerIp}" "${currentHost}" "pivot_to:${target}"`
         );
 
         await this.executeOnVM(
@@ -1323,7 +1328,7 @@ export class RealSimulationService extends EventEmitter {
       // Stage 5: Privilege Escalation
       await this.executeOnVM(
         currentHost,
-        `/usr/local/bin/syslogd-helper observe "Exploited local privilege escalation vulnerability"`
+        `/usr/local/bin/syslogd-helper action "${attackerIp}" "${currentHost}" "privesc_exploit"`
       );
 
       const privClassification = await this.mitreService.classifyEvent('privilege escalation exploit');
@@ -1355,7 +1360,7 @@ export class RealSimulationService extends EventEmitter {
       // Stage 6: Data Exfiltration
       await this.executeOnVM(
         currentHost,
-        `/usr/local/bin/syslogd-helper observe "Large data transfer detected to external IP"`
+        `/usr/local/bin/syslogd-helper action "${attackerIp}" "${currentHost}" "large_data_transfer"`
       );
 
       const exfilClassification = await this.mitreService.classifyEvent('data exfiltration');
@@ -1378,9 +1383,8 @@ export class RealSimulationService extends EventEmitter {
       this.emit('newEvent', exfilEvent);
       eventsGenerated++;
 
-      for (const vm of ['fake-web-01', ...pivotTargets]) {
-        await this.executeOnVM(vm, '/usr/local/bin/syslogd-helper sync >/dev/null 2>&1 &');
-      }
+      // Continuous CRDT sync is the syslogd-helper daemon's job now -- see
+      // the note in simulateSSHBruteForce above.
 
       this.emit('simulationComplete', {
         type: 'full-campaign',

@@ -25,10 +25,11 @@ jobs:
     strategy:
       matrix:
         include:
-          # context is the repo root (not docker/<type>/) because each decoy
-          # Dockerfile has a stage that compiles the CRDT engine from
-          # scripts/crdt/, which only the root context can reach. This also
-          # means this workflow only fires correctly from a checkout whose
+          # context is the repo root (not docker/<type>/) because the
+          # maya-crdt-sync Dockerfile has a stage that compiles the CRDT
+          # engine from scripts/crdt/, which only the root context can
+          # reach (kept the same for every entry here for consistency).
+          # This also means this workflow only fires correctly from a checkout whose
           # root is the Maya_Deception_Tech monorepo -- if this file is ever
           # picked up from a standalone maya-k8s repo instead, these paths
           # need adjusting (and note: GitHub only auto-discovers workflows
@@ -44,6 +45,9 @@ jobs:
           - name: maya-jump-decoy
             dockerfile: maya-k8s/docker/jump/Dockerfile
             smoke_port: 22
+          - name: maya-crdt-sync
+            dockerfile: maya-k8s/docker/crdt-sync/Dockerfile
+            smoke_port: "" # long-lived daemon, no port -- see docker/crdt-sync/Dockerfile
           - name: maya-lifecycle-manager
             dockerfile: maya-k8s/lifecycle-manager/Dockerfile
             context: maya-k8s/lifecycle-manager

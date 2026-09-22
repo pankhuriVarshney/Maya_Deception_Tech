@@ -11,6 +11,8 @@ export interface IAttacker extends Document {
   lastSeen: Date;
   dwellTime: number;
   status: 'Active' | 'Inactive' | 'Contained';
+  platform: 'vagrant' | 'k8s';
+  tier?: 'low' | 'gvisor' | 'kata';
   geolocation?: {
     country: string;
     city: string;
@@ -34,6 +36,8 @@ const AttackerSchema: Schema = new Schema({
   lastSeen: { type: Date, default: Date.now },
   dwellTime: { type: Number, default: 0 },
   status: { type: String, enum: ['Active', 'Inactive', 'Contained'], default: 'Active' },
+  platform: { type: String, enum: ['vagrant', 'k8s'], default: 'vagrant' },
+  tier: { type: String, enum: ['low', 'gvisor', 'kata'] },
   geolocation: {
     country: String,
     city: String,

@@ -19,6 +19,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -30,10 +31,16 @@ const decoyNamespace = "maya-decoys"
 
 // knownDecoyTypes maps a decoy "type" name to its Deployment name in-cluster.
 // Add an entry here each time a new decoy image/manifest is added under k8s/decoy/.
+//
+// NOTE: this previously used "fake-web-03" etc. -- the actual Deployment
+// names in k8s/decoy/*/deployment.yaml have never had that prefix (web-03,
+// redis-01, jump-01), so every provision/terminate/scale call was 404ing
+// against a Deployment that doesn't exist. Fixed here.
 var knownDecoyTypes = map[string]string{
-	"web":   "fake-web-03",
-	"redis": "fake-redis-01",
-	"jump":  "fake-jump-01",
+	"web":   "web-03",
+	"redis": "redis-01",
+	"jump":  "jump-01",
+	"ftp":   "ftp-01",
 }
 
 type clientCtx struct {
@@ -132,6 +139,53 @@ func (c *clientCtx) handleScale(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+type decoyStatus struct {
+	Type              string `json:"type"`
+	Deployment        string `json:"deployment"`
+	Found             bool   `json:"found"`
+	DesiredReplicas   int32  `json:"desiredReplicas"`
+	ReadyReplicas     int32  `json:"readyReplicas"`
+	AvailableReplicas int32  `json:"availableReplicas"`
+}
+
+// handleStatus reports every known decoy type's Deployment health --
+// desired/ready/available replica counts. What the Infrastructure page's
+// list view and the backend's own K8sDiscoveryService need to show
+// per-decoy state without each having to know about Deployments directly.
+func (c *clientCtx) handleStatus(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	statuses := make([]decoyStatus, 0, len(knownDecoyTypes))
+
+	for decoyType, deployName := range knownDecoyTypes {
+		deploy, err := c.clientset.AppsV1().Deployments(decoyNamespace).Get(ctx, deployName, metav1.GetOptions{})
+		if err != nil {
+			statuses = append(statuses, decoyStatus{Type: decoyType, Deployment: deployName, Found: false})
+			continue
+		}
+
+		var desired int32
+		if deploy.Spec.Replicas != nil {
+			desired = *deploy.Spec.Replicas
+		}
+
+		statuses = append(statuses, decoyStatus{
+			Type:              decoyType,
+			Deployment:        deployName,
+			Found:             true,
+			DesiredReplicas:   desired,
+			ReadyReplicas:     deploy.Status.ReadyReplicas,
+			AvailableReplicas: deploy.Status.AvailableReplicas,
+		})
+	}
+
+	sort.Slice(statuses, func(i, j int) bool { return statuses[i].Type < statuses[j].Type })
+
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"namespace": decoyNamespace,
+		"decoys":    statuses,
+	})
+}
+
 func (c *clientCtx) setReplicas(ctx context.Context, deployName string, replicas int32) error {
 	deploy, err := c.clientset.AppsV1().Deployments(decoyNamespace).Get(ctx, deployName, metav1.GetOptions{})
 	if err != nil {
@@ -200,6 +254,7 @@ func main() {
 	mux.HandleFunc("/provision", c.handleProvision)
 	mux.HandleFunc("/terminate", c.handleTerminate)
 	mux.HandleFunc("/scale", c.handleScale)
+	mux.HandleFunc("/status", c.handleStatus)
 
 	addr := ":8081"
 	log.Printf("decoy lifecycle manager listening on %s (namespace=%s)", addr, decoyNamespace)

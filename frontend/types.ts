@@ -3,6 +3,9 @@ import type { DashboardData, LateralMovementData, TimelineEvent as DashboardTime
 export type EngagementLevel = "Low" | "Medium" | "High"
 export type ConcernLevel = "Low" | "Medium" | "High" | "Critical"
 
+export type DecoyPlatform = "vagrant" | "k8s"
+export type DecoyTier = "low" | "gvisor" | "kata"
+
 export type AttackerSummary = {
   id: string
   ipAddress?: string
@@ -17,6 +20,8 @@ export type AttackerSummary = {
   concernLevel: ConcernLevel
   threatConfidence: number // 0-100
   status?: string
+  platform?: DecoyPlatform
+  tier?: DecoyTier
 }
 
 // These align with the existing dashboard domain types.

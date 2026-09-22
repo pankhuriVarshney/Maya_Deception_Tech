@@ -1,0 +1,84 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ftp-01
+  namespace: maya-decoys
+  labels:
+    maya.decoy/type: ftp
+    maya.decoy/tier: low
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ftp-01
+  template:
+    metadata:
+      labels:
+        app: ftp-01
+        maya.decoy/type: ftp
+    spec:
+      runtimeClassName: gvisor
+      automountServiceAccountToken: false
+      # Lets the crdt-sync sidecar below write the shared syscache emptyDir
+      # as its own non-root user -- the ftp container still runs as root
+      # (sshd/vsftpd), fsGroup just adds a supplemental group on the volume.
+      securityContext:
+        fsGroup: 10001
+      containers:
+        - name: ftp
+          image: maya-ftp:dev
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 22
+              name: ssh
+            - containerPort: 21
+              name: ftp
+          env:
+            - name: DECOY_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: ftp-creds
+                  key: password
+            - name: MAYA_STATE_FILE
+              value: /var/lib/.state/.syscache
+          volumeMounts:
+            - name: syscache
+              mountPath: /var/lib/.state
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+        # CRDT engine, moved out of the ftp container entirely (see
+        # docker/crdt-sync/Dockerfile) so the binary and its process are
+        # invisible from a shell in the ftp container -- separate rootfs,
+        # separate PID namespace, no listening port. Shares only the
+        # syscache volume, never mounted into the ftp container's own
+        # filesystem beyond that one directory.
+        - name: crdt-sync
+          image: maya-crdt-sync:dev
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: MAYA_STATE_FILE
+              value: /var/lib/.state/.syscache
+          volumeMounts:
+            - name: syscache
+              mountPath: /var/lib/.state
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 50m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+      volumes:
+        - name: syscache
+          emptyDir: {}

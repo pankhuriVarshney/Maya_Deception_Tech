@@ -50,9 +50,47 @@ run_setup() {
   step "Ensuring kind cluster '$CLUSTER_NAME' exists"
   if kind get clusters 2>/dev/null | grep -qx "$CLUSTER_NAME"; then
     ok "cluster already exists"
+    if ! docker port "${CLUSTER_NAME}-control-plane" 2>/dev/null | grep -q "^80/tcp"; then
+      echo "  (note: this cluster was created without the host port mappings this script"
+      echo "   now sets up (80/443 for ingress, 30022/30222/30637/30122/30021 for the"
+      echo "   jump/redis/ftp NodePorts), so those won't be reachable from your host."
+      echo "   Re-create it with: 'kind delete cluster --name $CLUSTER_NAME && ./scripts/1_Epic.sh' to pick them up.)"
+    fi
   else
-    kind create cluster --name "$CLUSTER_NAME"
-    ok "cluster created"
+    # Maps host 80/443 to the node so the nginx Ingress installed below is
+    # actually reachable from outside the cluster -- this is what plays
+    # gateway-vm's "default front door" role for K8s decoys (Epic 5 Task 3).
+    kind create cluster --name "$CLUSTER_NAME" --config - << 'EOF'
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+  - role: control-plane
+    extraPortMappings:
+      - containerPort: 80
+        hostPort: 80
+        protocol: TCP
+      - containerPort: 443
+        hostPort: 443
+        protocol: TCP
+      # Fixed NodePorts for the non-HTTP decoys (jump/redis/ftp -- see
+      # their Service definitions under k8s/decoy/*/service.yaml).
+      - containerPort: 30022
+        hostPort: 30022
+        protocol: TCP
+      - containerPort: 30222
+        hostPort: 30222
+        protocol: TCP
+      - containerPort: 30637
+        hostPort: 30637
+        protocol: TCP
+      - containerPort: 30122
+        hostPort: 30122
+        protocol: TCP
+      - containerPort: 30021
+        hostPort: 30021
+        protocol: TCP
+EOF
+    ok "cluster created (with host ports mapped for ingress + decoy NodePorts)"
   fi
 
   step "Installing gVisor on kind nodes and registering the RuntimeClass"
@@ -69,40 +107,74 @@ run_setup() {
     ok "gVisor installed on all nodes and RuntimeClass applied"
   fi
 
-  step "Applying namespaces, network policy, and shared config"
+  step "Installing the nginx Ingress controller (K8s decoys' default front door)"
+  # This is what plays gateway-vm's "everything lands here by default" role
+  # for the K8s fabric -- previously nothing did, decoys were only reachable
+  # via kubectl port-forward.
+  if kubectl get deployment ingress-nginx-controller -n ingress-nginx >/dev/null 2>&1; then
+    ok "ingress-nginx already installed, skipping"
+  else
+    kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/kind/deploy.yaml
+    kubectl wait --namespace ingress-nginx \
+      --for=condition=ready pod \
+      --selector=app.kubernetes.io/component=controller \
+      --timeout=120s
+    ok "ingress-nginx installed and ready"
+  fi
+
+  step "Applying namespaces and network policy"
   kubectl apply -f maya-k8s/k8s/namespaces.yaml
+  ok "namespaces applied"
+
+  step "Building and deploying the decoy lifecycle-manager"
+  docker build -t maya-lifecycle-manager:dev maya-k8s/lifecycle-manager
+  kind load docker-image maya-lifecycle-manager:dev --name "$CLUSTER_NAME"
+  kubectl apply -f maya-k8s/k8s/config/lifecycle-manager-deployment.yaml
+  kubectl rollout status deployment/decoy-lifecycle-manager -n maya-control --timeout=60s
+  ok "lifecycle-manager running in maya-control"
+
+  step "Applying shared decoy config"
   kubectl apply -f maya-k8s/k8s/config/breadcrumb-credentials.yaml
   kubectl apply -f maya-k8s/k8s/config/syslogd-helper-configmap.yaml
   ok "base config applied"
 
   step "Building decoy images"
-  # Build context is the repo root, not maya-k8s/docker/<type>/ -- each
-  # Dockerfile now has a stage that compiles the real CRDT engine from
-  # scripts/crdt/, which only the root context can reach.
+  # Build context is the repo root, not maya-k8s/docker/<type>/ -- the
+  # crdt-sync image compiles the real CRDT engine from scripts/crdt/, which
+  # only the root context can reach. The decoy images themselves no longer
+  # contain the CRDT engine at all (it runs in crdt-sync as a sidecar in
+  # each decoy Pod, see k8s/decoy/*/deployment.yaml) -- kept in the same
+  # build context for consistency.
   docker build -t maya-web:dev -f maya-k8s/docker/web/Dockerfile .
   docker build -t maya-redis:dev -f maya-k8s/docker/redis/Dockerfile .
   docker build -t maya-jump:dev -f maya-k8s/docker/jump/Dockerfile .
+  docker build -t maya-ftp:dev -f maya-k8s/docker/ftp/Dockerfile .
+  docker build -t maya-crdt-sync:dev -f maya-k8s/docker/crdt-sync/Dockerfile .
   ok "images built"
 
   step "Loading images into kind"
   kind load docker-image maya-web:dev --name "$CLUSTER_NAME"
   kind load docker-image maya-redis:dev --name "$CLUSTER_NAME"
   kind load docker-image maya-jump:dev --name "$CLUSTER_NAME"
+  kind load docker-image maya-ftp:dev --name "$CLUSTER_NAME"
+  kind load docker-image maya-crdt-sync:dev --name "$CLUSTER_NAME"
   ok "images loaded into cluster"
 
   step "Applying decoy manifests"
   kubectl apply -f maya-k8s/k8s/decoy/web/
   kubectl apply -f maya-k8s/k8s/decoy/redis/
   kubectl apply -f maya-k8s/k8s/decoy/jump/
+  kubectl apply -f maya-k8s/k8s/decoy/ftp/
   ok "manifests applied"
 
   step "Rolling out deployments"
-  kubectl rollout restart deployment/web-03 deployment/redis-01 deployment/jump-01 -n "$NAMESPACE"
+  kubectl rollout restart deployment/web-03 deployment/redis-01 deployment/jump-01 deployment/ftp-01 -n "$NAMESPACE"
 
   step "Waiting for pods to become ready (up to 90s each)"
   kubectl rollout status deployment/web-03 -n "$NAMESPACE" --timeout=90s
   kubectl rollout status deployment/redis-01 -n "$NAMESPACE" --timeout=90s
   kubectl rollout status deployment/jump-01 -n "$NAMESPACE" --timeout=90s
+  kubectl rollout status deployment/ftp-01 -n "$NAMESPACE" --timeout=90s
   ok "all deployments rolled out"
 
   step "Cleaning up completed/terminated pods from prior rollouts"
@@ -115,7 +187,7 @@ run_setup() {
   # confirms the *new* pods are ready, not that the *old* ones are gone.
   # Wait here so later per-pod checks and the HTTP check can't race a
   # still-terminating old pod.
-  for dep in web-03 redis-01 jump-01; do
+  for dep in web-03 redis-01 jump-01 ftp-01; do
     want=$(kubectl get deployment "$dep" -n "$NAMESPACE" -o jsonpath='{.spec.replicas}')
     for _ in $(seq 1 30); do
       have=$(kubectl get pods -n "$NAMESPACE" -l "app=$dep" --field-selector=status.phase=Running --no-headers 2>/dev/null | wc -l | tr -d ' ')
@@ -131,23 +203,56 @@ run_verify() {
   step "Pod status"
   kubectl get pods -n "$NAMESPACE"
 
+  step "lifecycle-manager checks"
+  # Runs under the default runtime (no runtimeClassName set), so unlike the
+  # gVisor decoy pods, port-forward works normally here.
+  kubectl port-forward -n maya-control deploy/decoy-lifecycle-manager 18081:8081 > /tmp/lcm_pf.log 2>&1 &
+  lcm_pf_pid=$!
+  sleep 2
+  if curl -fsS --max-time 5 http://localhost:18081/status 2>/tmp/lcm_status.log | grep -q '"decoys"'; then
+    ok "lifecycle-manager /status responded"
+  else
+    bad "lifecycle-manager /status did not respond as expected"
+    sed 's/^/      /' /tmp/lcm_status.log 2>/dev/null
+  fi
+  kill "$lcm_pf_pid" 2>/dev/null || true
+  wait "$lcm_pf_pid" 2>/dev/null || true
+
   step "web-03 checks"
   check "nginx directories present"      kubectl exec -n "$NAMESPACE" deploy/web-03 -- test -d /var/lib/nginx/body
   check "nginx config valid"             kubectl exec -n "$NAMESPACE" deploy/web-03 -- nginx -t
   check "supervisord socket reachable"   kubectl exec -n "$NAMESPACE" deploy/web-03 -- supervisorctl status
-  check "syslogd-helper responds"        kubectl exec -n "$NAMESPACE" deploy/web-03 -- syslogd-helper stats
+  # syslogd-helper now lives in the crdt-sync sidecar, not the web
+  # container -- see k8s/decoy/web/deployment.yaml.
+  check "syslogd-helper responds"        kubectl exec -n "$NAMESPACE" deploy/web-03 -c crdt-sync -- syslogd-helper stats
+  check "syslogd-helper absent from web container" \
+    sh -c "! kubectl exec -n $NAMESPACE deploy/web-03 -c web -- sh -c 'command -v syslogd-helper' >/dev/null 2>&1"
 
   step "redis-01 checks"
   check "supervisord socket reachable"   kubectl exec -n "$NAMESPACE" deploy/redis-01 -- supervisorctl status
-  check "syslogd-helper responds"        kubectl exec -n "$NAMESPACE" deploy/redis-01 -- syslogd-helper stats
+  check "syslogd-helper responds"        kubectl exec -n "$NAMESPACE" deploy/redis-01 -c crdt-sync -- syslogd-helper stats
   check "redis responds to PING"         kubectl exec -n "$NAMESPACE" deploy/redis-01 -- redis-cli ping
 
   step "jump-01 checks"
-  check "syslogd-helper responds"        kubectl exec -n "$NAMESPACE" deploy/jump-01 -- syslogd-helper stats
+  check "syslogd-helper responds"        kubectl exec -n "$NAMESPACE" deploy/jump-01 -c crdt-sync -- syslogd-helper stats
   # /proc/net/tcp is portable across busybox/alpine and glibc images with
   # no extra packages needed. Port 22 in hex (local_address column) is
   # 0016; state 0A means LISTEN.
   check "sshd listening on 22"           kubectl exec -n "$NAMESPACE" deploy/jump-01 -- sh -c "grep -q ':0016 .*:0000 0A' /proc/net/tcp"
+
+  step "ftp-01 checks"
+  check "supervisord socket reachable"   kubectl exec -n "$NAMESPACE" deploy/ftp-01 -- supervisorctl status
+  check "syslogd-helper responds"        kubectl exec -n "$NAMESPACE" deploy/ftp-01 -c crdt-sync -- syslogd-helper stats
+  # Port 21 in hex is 0015.
+  check "vsftpd listening on 21"         kubectl exec -n "$NAMESPACE" deploy/ftp-01 -- sh -c "grep -q ':0015 .*:0000 0A' /proc/net/tcp"
+
+  step "Traffic entry: NodePorts reachable from the host"
+  # Unlike port-forward, this is real network traffic through the normal
+  # Service/CNI path, which gVisor's netstack handles correctly -- the
+  # port-forward gVisor caveat above doesn't apply here.
+  check "jump-01 SSH NodePort open (30022)"  bash -c 'exec 3<>/dev/tcp/127.0.0.1/30022'
+  check "redis-01 NodePort open (30637)"     bash -c 'exec 3<>/dev/tcp/127.0.0.1/30637'
+  check "ftp-01 FTP NodePort open (30021)"   bash -c 'exec 3<>/dev/tcp/127.0.0.1/30021'
 
   step "No unexpected extra mount on web-03 (fingerprint check)"
   if kubectl exec -n "$NAMESPACE" deploy/web-03 -- mount 2>/dev/null | grep -qi "maya-state\|syscache"; then
@@ -171,6 +276,21 @@ run_verify() {
   else
     bad "web-03 did not respond with HTTP 200"
     sed 's/^/      /' /tmp/http_check.log
+  fi
+
+  step "Traffic entry: Ingress front door reachable from the host"
+  # The ingress-nginx controller pod itself runs under the default runtime
+  # (not gvisor), and its connection onward to web-03 is real Service/CNI
+  # traffic -- so unlike kubectl port-forward, this path actually works.
+  if command -v curl >/dev/null 2>&1; then
+    if curl -fsS --max-time 5 -o /dev/null -w '%{http_code}' http://localhost/ 2>/tmp/ingress_check.log | grep -q "200"; then
+      ok "Ingress served HTTP 200 at http://localhost/"
+    else
+      bad "Ingress did not respond with HTTP 200 at http://localhost/"
+      sed 's/^/      /' /tmp/ingress_check.log
+    fi
+  else
+    echo -e "  ${YELLOW}!${NC} curl not found, skipping host-level Ingress check"
   fi
 
   # ---- summary --------------------------------------------------------
