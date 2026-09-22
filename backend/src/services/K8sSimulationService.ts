@@ -67,6 +67,15 @@ export class K8sSimulationService extends EventEmitter {
     return Array.from(this.targetCache.keys());
   }
 
+  // syslogd-helper now lives only in the crdt-sync sidecar (see
+  // maya-k8s/docker/crdt-sync/Dockerfile) -- separate rootfs and PID
+  // namespace from the decoy container on purpose, so an attacker with a
+  // shell in the decoy can't find the binary. Anything that needs to
+  // invoke the binary itself must exec into this container, not the
+  // decoy's own (which execOn below still correctly targets, for actual
+  // attack-command execution -- whoami, discovery commands, etc.).
+  private static readonly CRDT_SIDECAR_CONTAINER = 'crdt-sync';
+
   private async execOn(appName: string, command: string[]): Promise<{ stdout: string; stderr: string }> {
     const target = this.targetCache.get(appName);
     if (!target) {
@@ -83,10 +92,19 @@ export class K8sSimulationService extends EventEmitter {
     return { stdout, stderr };
   }
 
-  /** Records to the pod's real CRDT state via the actual binary (visit/action/cred -- not the nonexistent `observe`). */
+  /** Records to the pod's real CRDT state via the actual binary (visit/action/cred -- not the nonexistent `observe`), in the crdt-sync sidecar. */
   private async record(appName: string, args: string[]) {
+    const target = this.targetCache.get(appName);
+    if (!target) return;
+
     try {
-      await this.execOn(appName, ['syslogd-helper', ...args]);
+      await execInPod(
+        target.cluster,
+        target.pod.podName,
+        K8sSimulationService.CRDT_SIDECAR_CONTAINER,
+        ['syslogd-helper', ...args],
+        10000
+      );
     } catch (error) {
       logger.debug(`K8s CRDT record failed on ${appName}: ${error instanceof Error ? error.message : String(error)}`);
     }
