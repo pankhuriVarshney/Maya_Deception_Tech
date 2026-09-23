@@ -1,10 +1,11 @@
 import express from 'express';
 import request from 'supertest';
 import { errorHandler } from '../../middleware/errorHandler';
-import { logger } from './helpers/mockLogger';
 import { mockQuery } from './helpers/mockQuery';
 
-jest.mock('../../utils/logger', () => ({ logger }));
+jest.mock('../../utils/logger', () => ({
+  logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
+}));
 
 jest.mock('../../services/RealSimulationService');
 jest.mock('../../services/CRDTSyncService');
