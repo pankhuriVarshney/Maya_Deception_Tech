@@ -6,7 +6,7 @@ services:
     image: cowrie/cowrie:latest
     container_name: cowrie-ssh
     ports:
-      - "2222:2222"
+      - "2223:2222"
     volumes:
       - cowrie-logs:/cowrie/cowrie-git/var/log/cowrie
     environment:
