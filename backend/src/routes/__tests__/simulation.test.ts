@@ -7,6 +7,15 @@ jest.mock('../../utils/logger', () => ({
 }));
 
 jest.mock('../../services/RealSimulationService');
+
+// K8sSimulationService pulls in @kubernetes/client-node (via K8sClient) at
+// module scope, which ships ESM-only and jest can't parse; mocking K8sClient
+// first stops the automock below from ever loading the real thing.
+jest.mock('../../services/k8s/K8sClient', () => ({
+  getTierClusters: jest.fn(),
+  listDecoyPods: jest.fn(),
+  execInPod: jest.fn(),
+}));
 jest.mock('../../services/K8sSimulationService');
 
 import { RealSimulationService } from '../../services/RealSimulationService';
