@@ -83,6 +83,26 @@ export async function syncAttackerCommandsFromState(
       const alreadyRecorded = await AttackEvent.exists({ eventId });
       if (alreadyRecorded) continue;
 
+      // Separately from the exact eventId check above: a single real SSH
+      // connection can occasionally cause sshd to invoke ForceCommand
+      // twice (an OpenSSH/sshpass negotiation quirk, not something this
+      // service controls), producing two distinct ActionRecords -- same
+      // attacker/decoy/command, a couple seconds apart, different Lamport
+      // tick. Collapse those into one AttackEvent rather than showing a
+      // duplicate command in the dashboard.
+      const wallTs = new Date(record.wall_ts);
+      const nearDuplicateWindowMs = 5000;
+      const nearDuplicate = await AttackEvent.exists({
+        attackerId,
+        targetHost: record.decoy,
+        command: record.action,
+        timestamp: {
+          $gte: new Date(wallTs.getTime() - nearDuplicateWindowMs),
+          $lte: new Date(wallTs.getTime() + nearDuplicateWindowMs),
+        },
+      });
+      if (nearDuplicate) continue;
+
       const classification = await mitre.classifyEvent(record.action);
       const risk = assessCommandRisk(record.action);
       const classificationMethod = ALLOWED_CLASSIFICATION_METHODS.has(classification.method)

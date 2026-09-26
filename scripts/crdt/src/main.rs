@@ -188,8 +188,21 @@ fn process_audit_log(state: &mut MayaState) {
     }
 
     // Consumed, not a growing log -- each line is a real event, replaying
-    // the same line on the next cycle would double-count it.
-    let _ = std::fs::write(&path, "");
+    // the same line on the next cycle would double-count it. Deleting
+    // (not truncating in place) on purpose: the wrapper/bashrc hook that
+    // creates this file runs as the decoy's own login user, not this
+    // daemon's user, so this process may only have GROUP write access via
+    // fsGroup -- which covers unlinking a file from a shared directory,
+    // but not necessarily overwriting the content of a file it doesn't
+    // own. The next append just recreates the file fresh. Logged, not
+    // silently swallowed, so a permission regression like this shows up
+    // immediately instead of quietly reprocessing the same lines forever.
+    if let Err(e) = std::fs::remove_file(&path) {
+        log_to_file(&format!("Failed to remove processed audit log {}: {} -- falling back to truncate", path, e));
+        if let Err(e2) = std::fs::write(&path, "") {
+            log_to_file(&format!("Truncate fallback for {} also failed: {} -- audit lines will be reprocessed next cycle", path, e2));
+        }
+    }
 }
 
 // Successful/failed SSH auth attempts. Real sshd never exposes the
