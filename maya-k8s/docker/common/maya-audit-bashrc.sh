@@ -15,9 +15,10 @@ _maya_log_command() {
   local last_cmd
   last_cmd="$(HISTTIMEFORMAT= history 1 2>/dev/null | sed -e 's/^[ ]*[0-9]*[ ]*//')"
   [ -n "$last_cmd" ] || return 0
-  printf '{"kind":"action","attacker_ip":"%s","decoy":"%s","action":"%s"}\n' \
+  printf '{"kind":"action","attacker_ip":"%s","decoy":"%s","action":"%s","ts":"%s"}\n' \
     "${MAYA_ATTACKER_IP:-unknown}" "${DECOY_NAME:-unknown}" \
     "$(printf '%s' "$last_cmd" | sed 's/\\/\\\\/g; s/"/\\"/g')" \
+    "$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo unknown)" \
     >> "$MAYA_AUDIT_LOG" 2>/dev/null
 }
 

@@ -8,6 +8,7 @@ import {
   K8sPodInfo,
   DecoyTier,
 } from './k8s/K8sClient';
+import { syncAttackerCommandsFromState } from './crdtCommandSync';
 
 const STATE_FILE_PATH = '/var/lib/.state/.syscache';
 
@@ -136,10 +137,22 @@ export class K8sDiscoveryService extends EventEmitter {
       if (!cleaned || cleaned === '{}') return this.emptyState();
 
       const state = JSON.parse(cleaned);
+
+      // Real per-command history (if any) -- feeds the same Attacker/
+      // AttackEvent collections the simulation engines already populate,
+      // so the dashboard shows genuine attacker commands, not just
+      // aggregate counts. Isolated in its own try so a sync failure never
+      // affects the count summary returned below.
+      try {
+        await syncAttackerCommandsFromState(state, pod.appName, 'k8s', this.resolveTier(pod));
+      } catch (syncError) {
+        logger.error(`Command sync failed for pod ${pod.podName}:`, syncError);
+      }
+
       return {
         attackers: Object.keys(state.attackers || {}).length,
         credentials: Object.keys(state.stolen_creds?.adds || {}).length,
-        sessions: Object.keys(state.active_sessions?.entries || {}).length,
+        sessions: (state.active_sessions?.elements || []).length,
         hash: '',
       };
     } catch (error) {

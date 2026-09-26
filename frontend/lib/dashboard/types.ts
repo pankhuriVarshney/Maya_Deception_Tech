@@ -72,6 +72,9 @@ export type LateralMovementData = {
 export type CommandActivityItem = {
   name: string
   severity: number // 0-100
+  technique?: string // MITRE technique ID, e.g. "T1082"
+  techniqueName?: string // e.g. "System Information Discovery"
+  dangerous?: boolean
 }
 
 export type BehaviorItem = {

@@ -2,6 +2,7 @@
 
 import { ChevronRight, Terminal } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Badge } from "@/components/ui/badge"
 import type { CommandActivityItem } from "@/lib/dashboard/types"
 
 type CommandActivityProps = {
@@ -39,11 +40,21 @@ export function CommandActivity({ data, loading }: CommandActivityProps) {
                 key={cmd.name}
                 className="flex items-center justify-between rounded-md bg-secondary/50 px-3 py-2"
               >
-                <div className="flex items-center gap-2">
-                  <Terminal className="h-3.5 w-3.5 text-primary" />
-                  <span className="text-sm font-mono text-foreground">{cmd.name}</span>
+                <div className="flex items-center gap-2 min-w-0">
+                  <Terminal className="h-3.5 w-3.5 text-primary shrink-0" />
+                  <span className="text-sm font-mono text-foreground truncate">{cmd.name}</span>
+                  {cmd.technique && (
+                    <Badge variant="outline" className="shrink-0 font-mono text-[10px]" title={cmd.techniqueName}>
+                      {cmd.technique}
+                    </Badge>
+                  )}
+                  {cmd.dangerous && (
+                    <Badge variant="destructive" className="shrink-0 text-[10px]">
+                      Dangerous
+                    </Badge>
+                  )}
                 </div>
-                <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
               </div>
             ))}
       </div>

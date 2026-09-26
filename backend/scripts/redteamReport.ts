@@ -119,11 +119,14 @@ async function main() {
   lines.push('system\'s own **independent** detection/logging, not of two synthetic self-reports.');
   lines.push('');
   lines.push('**Important asymmetry**: Cowrie natively logs every command in full detail.');
-  lines.push('Maya\'s passive CRDT pipeline (real SSH activity -> syslogd-helper -> CRDTSyncService)');
-  lines.push('currently only surfaces aggregate counts (attackers/credentials/sessions seen), not');
-  lines.push('a per-command history -- the CRDT state\'s `actions_per_decoy` is a last-write-wins');
-  lines.push('map, so it retains only the most recent action per decoy, not a full log. This is a');
-  lines.push('real architectural gap, documented in docs/STATUS.md, not a limitation of this report.');
+  lines.push('Maya\'s passive CRDT pipeline (real SSH activity -> ForceCommand wrapper -> crdt-sync');
+  lines.push('sidecar -> CRDTSyncService/K8sDiscoveryService) now also retains a full per-command');
+  lines.push('history (`actions_per_decoy` is a CRDT set, not a last-write-wins map) and gets it');
+  lines.push('MITRE-classified into the same Attacker/AttackEvent collections the dashboard reads --');
+  lines.push('see `GET /api/dashboard/attacker/:id` for that detail. This report specifically only');
+  lines.push('reads `VMStatus.crdtState`\'s three aggregate counts below, not that per-command detail,');
+  lines.push('so the comparison table still shows Maya\'s commands as "not captured **by this report**"');
+  lines.push('rather than a real product gap -- check the dashboard API for the real command list.');
   lines.push('');
   lines.push('## Attack battery (ground truth)');
   lines.push('');
@@ -161,7 +164,7 @@ async function main() {
   } else {
     lines.push('- No --maya-before snapshot supplied, so no before/after delta is available (only current totals above).');
   }
-  lines.push('- Per-command MITRE technique detection: not available (see asymmetry note above).');
+  lines.push('- Per-command MITRE technique detection: not shown in this report (see asymmetry note above) -- available via the dashboard API.');
   lines.push('- Lateral movement tracking: not applicable to this single-decoy battery, but is a');
   lines.push('  Maya-only capability with no Cowrie equivalent -- Cowrie is a standalone honeypot,');
   lines.push('  not a networked fabric an attacker can pivot across.');
@@ -172,8 +175,8 @@ async function main() {
   lines.push('|---|---|---|');
   lines.push(`| Sessions/attackers detected | ${cowrie.totalSessions} | ${mayaAfter?.crdtState?.attackers ?? 'n/a'} |`);
   lines.push(`| Credentials captured | ${cowrie.successfulLogins} | ${mayaAfter?.crdtState?.credentials ?? 'n/a'} |`);
-  lines.push(`| Commands logged (granular) | ${cowrie.totalCommands} | not captured (see asymmetry note) |`);
-  lines.push(`| MITRE techniques independently detected | ${cowrie.distinctTechniques.length} | not measurable at command granularity yet |`);
+  lines.push(`| Commands logged (granular) | ${cowrie.totalCommands} | not shown in this report (see asymmetry note) |`);
+  lines.push(`| MITRE techniques independently detected | ${cowrie.distinctTechniques.length} | not shown in this report (see asymmetry note) |`);
   lines.push('| Lateral movement across nodes | n/a (single host) | supported (not exercised by this single-target battery) |');
   lines.push('| False positives | 0 (no legitimate users) | 0 (no legitimate users) |');
   lines.push('');

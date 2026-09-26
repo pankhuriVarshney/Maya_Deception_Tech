@@ -240,3 +240,61 @@ export async function classifyCommand(command: string): Promise<{
     allMatches: uniqueMatches
   };
 }
+
+export interface CommandRiskAssessment {
+  dangerous: boolean;
+  severity: 'Low' | 'Medium' | 'High' | 'Critical';
+  matchedPattern?: string;
+}
+
+// Keyword/regex "is this command dangerous" check -- independent of MITRE
+// classification above (a command can be confidently MITRE-tagged as
+// Discovery and still be entirely benign, e.g. `whoami`, or vice versa).
+// Same match style as COMMAND_SIGNATURES/REGEX_PATTERNS: exact substring
+// first (fast, unambiguous), then regex for variable arguments.
+const DANGEROUS_SIGNATURES: string[] = [
+  'rm -rf /', 'rm -fr /', 'mkfs', 'dd if=/dev/zero', 'dd if=/dev/urandom',
+  'chmod 4755', 'chmod +s', 'chmod -r 777', 'chmod 777 /',
+  'cat /etc/shadow', '/etc/shadow',
+  'history -c', 'unset histfile', 'export histfile=/dev/null',
+  'iptables -f', 'iptables --flush',
+  'useradd', 'passwd root', 'usermod -ag sudo', 'usermod -ag wheel',
+  'crontab -e',
+];
+
+const DANGEROUS_REGEX_PATTERNS: Array<{ pattern: RegExp; name: string }> = [
+  { pattern: /rm\s+-[a-z]*r[a-z]*f?[a-z]*\s+\//i, name: 'Recursive delete from root' },
+  { pattern: /:\(\)\s*\{\s*:\|:&\s*\}\s*;\s*:/, name: 'Fork bomb' },
+  { pattern: /(nc|ncat|netcat)\s+.*-e\s+/i, name: 'Netcat reverse shell' },
+  { pattern: /bash\s+-i\s*>&\s*\/dev\/tcp/i, name: 'Bash reverse shell' },
+  { pattern: /python[23]?\s+-c\s+.*socket/i, name: 'Python reverse shell' },
+  { pattern: /(curl|wget)\s+\S+\s*\|\s*(sh|bash)/i, name: 'Pipe-to-shell download' },
+  { pattern: /base64\s+(-d|--decode)\s*\|\s*(sh|bash)/i, name: 'Base64-decoded execution' },
+  { pattern: />\s*\/etc\/(passwd|shadow|sudoers)/i, name: 'Overwrite of a system credential file' },
+];
+
+// Common recon commands that aren't dangerous on their own -- gives every
+// real captured command *some* severity signal, not just the flagged ones.
+const RECON_SIGNATURES: string[] = [
+  'whoami', ' id', 'uname', 'ps aux', 'netstat', 'ss -tulpn',
+  'ls -la', 'find /', 'cat /etc/passwd', 'cat /etc/hosts',
+];
+
+export function assessCommandRisk(command: string): CommandRiskAssessment {
+  const normalized = command.toLowerCase().trim();
+
+  for (const sig of DANGEROUS_SIGNATURES) {
+    if (normalized.includes(sig.toLowerCase())) {
+      return { dangerous: true, severity: 'Critical', matchedPattern: sig };
+    }
+  }
+  for (const { pattern, name } of DANGEROUS_REGEX_PATTERNS) {
+    if (pattern.test(normalized)) {
+      return { dangerous: true, severity: 'Critical', matchedPattern: name };
+    }
+  }
+  if (RECON_SIGNATURES.some(sig => normalized.includes(sig))) {
+    return { dangerous: false, severity: 'Medium' };
+  }
+  return { dangerous: false, severity: 'Low' };
+}

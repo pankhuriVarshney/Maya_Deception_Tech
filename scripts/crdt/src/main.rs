@@ -179,7 +179,8 @@ fn process_audit_log(state: &mut MayaState) {
             }
             Some("action") => {
                 if let Some(action) = event.get("action").and_then(|v| v.as_str()) {
-                    state.record_action(attacker_ip, decoy, action);
+                    let wall_ts = event.get("ts").and_then(|v| v.as_str());
+                    state.record_action(attacker_ip, decoy, action, wall_ts);
                 }
             }
             _ => {}
@@ -285,13 +286,13 @@ fn main() {
         
         Some("action") => {
             if let (Some(attacker_ip), Some(decoy), Some(action)) = (args.get(2), args.get(3), args.get(4)) {
-                state.record_action(attacker_ip, decoy, action);
+                state.record_action(attacker_ip, decoy, action, None);
                 state.save(state_file());
                 println!("Recorded action: attacker={} decoy={} action={}", attacker_ip, decoy, action);
             } else if let (Some(decoy), Some(action)) = (args.get(2), args.get(3)) {
                 let attacker = detect_attacker_id();
                 eprintln!("WARNING: Using auto-detected attacker IP: {}", attacker);
-                state.record_action(&attacker, decoy, action);
+                state.record_action(&attacker, decoy, action, None);
                 state.save(state_file());
             }
         }
@@ -349,7 +350,7 @@ fn main() {
             println!("Lamport Clock: {}", state.clock.counter);
             println!("Attackers: {}", state.attackers.len());
             println!("Credentials: {}", state.stolen_creds.elements().len());
-            println!("Sessions: {}", state.active_sessions.entries.len());
+            println!("Sessions: {}", state.active_sessions.elements.len());
             let total_decoys: usize = state.attackers.values().map(|a| a.visited_decoys.elements.len()).sum();
             println!("Decoys visited: {}", total_decoys);
             println!("State hash: {}", state.hash());

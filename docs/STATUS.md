@@ -77,9 +77,16 @@ still a last-write-wins map, so only the latest command per decoy
 survives a merge, not a full per-command history. Both are called out in
 the comparison report itself.
 
-**Still needed**: rebuild `maya-crdt-sync:dev` and the four decoy images,
-`kind load` them, roll the deployments, and re-run the battery + report to
-confirm the fix in practice:
+**Confirmed working** (2026-09-26, real kind cluster + real Cowrie
+container, images rebuilt and rolled out): Maya's `jump-01` now shows
+**1 attacker / 1 credential / 1 session** after the same battery that
+previously produced 0/0/0. Cowrie's numbers on the same clean run: 26
+sessions / 52 login attempts (26 successful) / 26 commands, latency
+29721ms -- both sides now internally consistent (Cowrie's 26 comes from
+`run-battery.sh` opening a separate SSH connection per command, 16
+brute-force + 9 post-auth + 1 exfil = 26, combined with Cowrie's
+accept-any-credential default; Maya's 1/1/1 correctly reflects that only
+one attacker IP ever used the one real decoy credential). Repro:
 ```bash
 docker restart cowrie-ssh   # clean log, avoids the contamination noted above
 ./scripts/redteam/run-battery.sh --target <maya-decoy-ip> --ssh-port <port> --label maya-jump-01 --known-user admin --known-pass 'fakejump01!'
@@ -88,6 +95,28 @@ docker cp cowrie-ssh:/cowrie/cowrie-git/var/log/cowrie/cowrie.json ./cowrie.json
 sleep 35   # crdt-sync's daemon loop only polls the shared audit log every 30s
 cd backend && npx ts-node scripts/redteamReport.ts --battery-log ../redteam-results/maya-jump-01-battery.jsonl --cowrie-log ../cowrie.json --maya-vm jump-01 --out ../redteam-results/report.md
 ```
+
+**Update — both remaining gaps above are now fixed.**
+`active_sessions` and `actions_per_decoy` are CRDT sets (`GSet`), not
+last-write-wins maps (`scripts/crdt/src/lib.rs`) — session count is now
+genuinely additive, and every real command survives a merge instead of
+only the latest one per decoy. A new shared backend function,
+`backend/src/services/crdtCommandSync.ts`, feeds that real per-command
+history into the same `Attacker`/`AttackEvent` collections the simulation
+engines already populate (classified via the existing
+`MitreAttackService.classifyEvent`, idempotent against re-polling via a
+deterministic `eventId`), called from both `K8sDiscoveryService` (K8s) and
+`CRDTSyncService` (Vagrant) — so real attacker commands now show up in the
+dashboard's Command Activity panel with a MITRE technique badge and a
+"Dangerous" flag (`backend/src/utils/commandPatterns.ts`'s new
+`assessCommandRisk()`), the same way simulated attacks always have. No
+Mongo schema changes were needed — `AttackEvent` already had every field
+this needed; `AttackerMapper.ts` was just silently discarding
+`technique`/`techniqueName` before mapping to the frontend.
+
+Not yet rebuilt/redeployed or run against a live cluster — same
+rebuild → `kind load` → rollout restart → re-run-battery sequence as the
+previous fix, plus a backend restart to pick up the new TypeScript.
 
 ## Epic 5 — Kubernetes as the default fabric (gVisor → Kata → Vagrant)
 

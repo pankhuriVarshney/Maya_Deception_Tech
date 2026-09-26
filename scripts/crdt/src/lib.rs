@@ -143,10 +143,24 @@ impl<K: Ord + Clone, V: Clone> LWWMap<K, V> {
     }
 }
 
+// One real command, with both a Lamport tick (for CRDT ordering/uniqueness
+// across peers) and a real wall-clock timestamp (for display -- the
+// Lamport clock is just a monotonic counter, never a time humans can
+// read). A GSet of these is append-only: unlike the LWWMap this used to
+// be, every real command survives a merge, not just the latest one.
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct ActionRecord {
+    pub decoy: String,
+    pub action: String,
+    pub ts: u64,
+    pub wall_ts: String,
+    pub node: String,
+}
+
 #[derive(Serialize, Deserialize, Clone)]
 pub struct AttackerState {
     pub visited_decoys: GSet<String>,
-    pub actions_per_decoy: LWWMap<String, String>,
+    pub actions_per_decoy: GSet<ActionRecord>,
     pub location: LWWRegister<String>,
 }
 
@@ -154,7 +168,7 @@ impl AttackerState {
     pub fn new() -> Self {
         Self {
             visited_decoys: GSet::new(),
-            actions_per_decoy: LWWMap::new(),
+            actions_per_decoy: GSet::new(),
             location: LWWRegister::new(),
         }
     }
@@ -172,7 +186,12 @@ pub struct MayaState {
     pub clock: LamportClock,
     pub attackers: BTreeMap<String, AttackerState>,
     pub stolen_creds: AWORSet<String>,
-    pub active_sessions: LWWMap<String, String>,
+    // GSet, not LWWMap: this used to be keyed by decoy hostname, so a
+    // second real session on the same decoy just overwrote the first --
+    // the count was stuck at 0 or 1 per decoy no matter how many real
+    // logins happened. Each element is a "<decoy>|<session_id>" composite
+    // key, so every real session is retained and counted.
+    pub active_sessions: GSet<String>,
 }
 
 impl MayaState {
@@ -182,7 +201,7 @@ impl MayaState {
             clock: LamportClock::new(node_id),
             attackers: BTreeMap::new(),
             stolen_creds: AWORSet::new(),
-            active_sessions: LWWMap::new(),
+            active_sessions: GSet::new(),
         }
     }
 }
@@ -256,18 +275,26 @@ impl MayaState {
         attacker.location.set(decoy.to_string(), ts, node_id);
     }
 
-    pub fn record_action(&mut self, ip: &str, decoy: &str, action: &str) {
+    // wall_ts is a real ISO8601 timestamp for display (the K8s audit
+    // wrapper supplies its own, captured at the moment the command ran);
+    // None defaults to "now", which is what the Vagrant profile.d hooks
+    // still get since they call this synchronously via the CLI.
+    pub fn record_action(&mut self, ip: &str, decoy: &str, action: &str, wall_ts: Option<&str>) {
         let ts = self.clock.tick();
         let node_id = self.node_id.clone(); // clone first
+        let wall_ts = wall_ts
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| chrono::Utc::now().to_rfc3339());
 
         let attacker = self.get_or_create_attacker(ip);
 
-        attacker.actions_per_decoy.insert(
-            decoy.to_string(),
-            action.to_string(),
+        attacker.actions_per_decoy.add(ActionRecord {
+            decoy: decoy.to_string(),
+            action: action.to_string(),
             ts,
-            node_id,
-        );
+            wall_ts,
+            node: node_id,
+        });
     }
 
     pub fn update_location(&mut self, ip: &str, location: &str) {
@@ -287,13 +314,7 @@ impl MayaState {
     }
 
     pub fn add_session(&mut self, host: &str, session: &str) {
-        let ts = self.clock.tick();
-        self.active_sessions.insert(
-            host.to_string(),
-            session.to_string(),
-            ts,
-            self.node_id.clone(),
-        );
+        self.active_sessions.add(format!("{}|{}", host, session));
     }
 
     /* =========================
@@ -306,7 +327,7 @@ impl MayaState {
         println!("Clock: {}", self.clock.counter);
         println!("Attackers: {}", self.attackers.len());
         println!("Credentials: {}", self.stolen_creds.elements().len());
-        println!("Sessions: {}", self.active_sessions.entries.len());
+        println!("Sessions: {}", self.active_sessions.elements.len());
 
         for (ip, attacker) in &self.attackers {
             println!("\nAttacker: {}", ip);

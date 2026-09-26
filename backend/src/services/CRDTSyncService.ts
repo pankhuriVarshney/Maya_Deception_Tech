@@ -6,6 +6,7 @@ import * as fs from 'fs';
 
 import { VMStatus } from '../models';
 import { logger } from '../utils/logger';
+import { syncAttackerCommandsFromState } from './crdtCommandSync';
 
 const execAsync = promisify(exec);
 
@@ -132,7 +133,7 @@ export class CRDTSyncService extends EventEmitter {
             ip: vmStatus.ip,
             lastSeen: new Date(),
             crdtState: vmStatus.status === 'running'
-              ? await this.getCrdtState(vmPath)
+              ? await this.getCrdtState(vmPath, vmName)
               : { attackers: 0, credentials: 0, sessions: 0, hash: '' },
             dockerContainers: vmStatus.status === 'running'
               ? await this.getDockerContainers(vmPath)
@@ -215,7 +216,7 @@ export class CRDTSyncService extends EventEmitter {
     }
   }
 
-  private async getCrdtState(vmPath: string) {
+  private async getCrdtState(vmPath: string, vmName: string) {
     try {
       // Read the raw state file directly rather than shelling out to
       // `syslogd-helper stats` -- that subcommand prints a human-readable
@@ -238,10 +239,22 @@ export class CRDTSyncService extends EventEmitter {
       }
 
       const state = JSON.parse(cleaned);
+
+      // Real per-command history (if any) -- feeds the same Attacker/
+      // AttackEvent collections the simulation engines already populate,
+      // so the dashboard shows genuine attacker commands, not just
+      // aggregate counts. Isolated in its own try so a sync failure never
+      // affects the count summary returned below.
+      try {
+        await syncAttackerCommandsFromState(state, vmName, 'vagrant');
+      } catch (syncError) {
+        logger.error(`Command sync failed for VM ${vmName}:`, syncError);
+      }
+
       return {
         attackers: Object.keys(state.attackers || {}).length,
         credentials: Object.keys(state.stolen_creds?.adds || {}).length,
-        sessions: Object.keys(state.active_sessions?.entries || {}).length,
+        sessions: (state.active_sessions?.elements || []).length,
         // MayaState doesn't serialize a hash field (it's computed on demand
         // by the Rust side's .hash() method, not stored) -- there's nothing
         // to read here without re-hashing the JSON ourselves, which isn't
@@ -296,7 +309,7 @@ export class CRDTSyncService extends EventEmitter {
         status: 'running',
         ip: vmStatus.ip,
         lastSeen: new Date(),
-        crdtState: await this.getCrdtState(vmPath),
+        crdtState: await this.getCrdtState(vmPath, vmName),
         dockerContainers: await this.getDockerContainers(vmPath)
       },
       { upsert: true, new: true }

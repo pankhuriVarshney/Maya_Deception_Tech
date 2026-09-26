@@ -108,9 +108,12 @@ export async function mapToDashboardData(dbAttacker: any): Promise<any> {
     lateralMovement: generateMovementFromData(movements, decoys),
     commandActivity: events
       .filter((e: any) => e.type === 'Command Execution' || e.command)
-      .map((e: any) => ({ 
-        name: e.command || e.description.substring(0, 30), 
-        severity: mapSeverityValue(e.severity) 
+      .map((e: any) => ({
+        name: e.command || e.description.substring(0, 30),
+        severity: mapSeverityValue(e.severity),
+        technique: e.technique,
+        techniqueName: e.techniqueName,
+        dangerous: e.severity === 'Critical',
       })) || createDefaultCommands(),
     behaviorAnalysis: analyzeBehaviors(events, dbAttacker),
     incidentSummary: generateSummaryFromEvents(events),

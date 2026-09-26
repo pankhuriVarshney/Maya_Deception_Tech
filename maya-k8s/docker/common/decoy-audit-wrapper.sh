@@ -28,14 +28,15 @@ _json_escape() {
   printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
 }
 
+NOW_TS="$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo unknown)"
 SESSION_ID="$(date -u +%Y%m%dT%H%M%S 2>/dev/null || echo unknown)-$$"
-printf '{"kind":"session","attacker_ip":"%s","decoy":"%s","session_id":"%s"}\n' \
-  "$(_json_escape "$ATTACKER_IP")" "$(_json_escape "$DECOY")" "$(_json_escape "$SESSION_ID")" \
+printf '{"kind":"session","attacker_ip":"%s","decoy":"%s","session_id":"%s","ts":"%s"}\n' \
+  "$(_json_escape "$ATTACKER_IP")" "$(_json_escape "$DECOY")" "$(_json_escape "$SESSION_ID")" "$NOW_TS" \
   >> "$AUDIT_LOG" 2>/dev/null || true
 
 if [ -n "${SSH_ORIGINAL_COMMAND:-}" ]; then
-  printf '{"kind":"action","attacker_ip":"%s","decoy":"%s","action":"%s"}\n' \
-    "$(_json_escape "$ATTACKER_IP")" "$(_json_escape "$DECOY")" "$(_json_escape "$SSH_ORIGINAL_COMMAND")" \
+  printf '{"kind":"action","attacker_ip":"%s","decoy":"%s","action":"%s","ts":"%s"}\n' \
+    "$(_json_escape "$ATTACKER_IP")" "$(_json_escape "$DECOY")" "$(_json_escape "$SSH_ORIGINAL_COMMAND")" "$NOW_TS" \
     >> "$AUDIT_LOG" 2>/dev/null || true
   exec /bin/sh -c "$SSH_ORIGINAL_COMMAND"
 fi
