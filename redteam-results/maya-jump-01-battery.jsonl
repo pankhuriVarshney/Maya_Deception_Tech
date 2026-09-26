@@ -1,0 +1,56 @@
+{"ts":"2026-09-26T05:55:02.694Z","label":"maya-jump-01","phase":"recon","action":"nmap_start","result":"started"}
+{"ts":"2026-09-26T05:55:20.009Z","label":"maya-jump-01","phase":"recon","action":"nmap_scan","result":"completed"}
+{"ts":"2026-09-26T05:55:20.010Z","label":"maya-jump-01","phase":"bruteforce","action":"ssh_login_attempt:admin","result":"attempting"}
+{"ts":"2026-09-26T05:55:20.034Z","label":"maya-jump-01","phase":"bruteforce","action":"ssh_login_attempt:admin","result":"failed_as_expected"}
+{"ts":"2026-09-26T05:55:20.036Z","label":"maya-jump-01","phase":"bruteforce","action":"ssh_login_attempt:admin","result":"attempting"}
+{"ts":"2026-09-26T05:55:20.046Z","label":"maya-jump-01","phase":"bruteforce","action":"ssh_login_attempt:admin","result":"failed_as_expected"}
+{"ts":"2026-09-26T05:55:20.048Z","label":"maya-jump-01","phase":"bruteforce","action":"ssh_login_attempt:admin","result":"attempting"}
+{"ts":"2026-09-26T05:55:20.060Z","label":"maya-jump-01","phase":"bruteforce","action":"ssh_login_attempt:admin","result":"failed_as_expected"}
+{"ts":"2026-09-26T05:55:20.062Z","label":"maya-jump-01","phase":"bruteforce","action":"ssh_login_attempt:admin","result":"attempting"}
+{"ts":"2026-09-26T05:55:20.077Z","label":"maya-jump-01","phase":"bruteforce","action":"ssh_login_attempt:admin","result":"failed_as_expected"}
+{"ts":"2026-09-26T05:55:20.079Z","label":"maya-jump-01","phase":"bruteforce","action":"ssh_login_attempt:root","result":"attempting"}
+{"ts":"2026-09-26T05:55:20.092Z","label":"maya-jump-01","phase":"bruteforce","action":"ssh_login_attempt:root","result":"failed_as_expected"}
+{"ts":"2026-09-26T05:55:20.095Z","label":"maya-jump-01","phase":"bruteforce","action":"ssh_login_attempt:root","result":"attempting"}
+{"ts":"2026-09-26T05:55:20.107Z","label":"maya-jump-01","phase":"bruteforce","action":"ssh_login_attempt:root","result":"failed_as_expected"}
+{"ts":"2026-09-26T05:55:20.109Z","label":"maya-jump-01","phase":"bruteforce","action":"ssh_login_attempt:root","result":"attempting"}
+{"ts":"2026-09-26T05:55:20.123Z","label":"maya-jump-01","phase":"bruteforce","action":"ssh_login_attempt:root","result":"failed_as_expected"}
+{"ts":"2026-09-26T05:55:20.126Z","label":"maya-jump-01","phase":"bruteforce","action":"ssh_login_attempt:root","result":"attempting"}
+{"ts":"2026-09-26T05:55:20.140Z","label":"maya-jump-01","phase":"bruteforce","action":"ssh_login_attempt:root","result":"failed_as_expected"}
+{"ts":"2026-09-26T05:55:20.142Z","label":"maya-jump-01","phase":"bruteforce","action":"ssh_login_attempt:guest","result":"attempting"}
+{"ts":"2026-09-26T05:55:20.156Z","label":"maya-jump-01","phase":"bruteforce","action":"ssh_login_attempt:guest","result":"failed_as_expected"}
+{"ts":"2026-09-26T05:55:20.159Z","label":"maya-jump-01","phase":"bruteforce","action":"ssh_login_attempt:guest","result":"attempting"}
+{"ts":"2026-09-26T05:55:20.174Z","label":"maya-jump-01","phase":"bruteforce","action":"ssh_login_attempt:guest","result":"failed_as_expected"}
+{"ts":"2026-09-26T05:55:20.176Z","label":"maya-jump-01","phase":"bruteforce","action":"ssh_login_attempt:guest","result":"attempting"}
+{"ts":"2026-09-26T05:55:20.191Z","label":"maya-jump-01","phase":"bruteforce","action":"ssh_login_attempt:guest","result":"failed_as_expected"}
+{"ts":"2026-09-26T05:55:20.194Z","label":"maya-jump-01","phase":"bruteforce","action":"ssh_login_attempt:guest","result":"attempting"}
+{"ts":"2026-09-26T05:55:20.209Z","label":"maya-jump-01","phase":"bruteforce","action":"ssh_login_attempt:guest","result":"failed_as_expected"}
+{"ts":"2026-09-26T05:55:20.212Z","label":"maya-jump-01","phase":"bruteforce","action":"ssh_login_attempt:test","result":"attempting"}
+{"ts":"2026-09-26T05:55:20.227Z","label":"maya-jump-01","phase":"bruteforce","action":"ssh_login_attempt:test","result":"failed_as_expected"}
+{"ts":"2026-09-26T05:55:20.229Z","label":"maya-jump-01","phase":"bruteforce","action":"ssh_login_attempt:test","result":"attempting"}
+{"ts":"2026-09-26T05:55:20.245Z","label":"maya-jump-01","phase":"bruteforce","action":"ssh_login_attempt:test","result":"failed_as_expected"}
+{"ts":"2026-09-26T05:55:20.247Z","label":"maya-jump-01","phase":"bruteforce","action":"ssh_login_attempt:test","result":"attempting"}
+{"ts":"2026-09-26T05:55:20.261Z","label":"maya-jump-01","phase":"bruteforce","action":"ssh_login_attempt:test","result":"failed_as_expected"}
+{"ts":"2026-09-26T05:55:20.263Z","label":"maya-jump-01","phase":"bruteforce","action":"ssh_login_attempt:test","result":"attempting"}
+{"ts":"2026-09-26T05:55:20.278Z","label":"maya-jump-01","phase":"bruteforce","action":"ssh_login_attempt:test","result":"failed_as_expected"}
+{"ts":"2026-09-26T05:55:20.281Z","label":"maya-jump-01","phase":"postauth","action":"ssh_login","result":"attempting"}
+{"ts":"2026-09-26T05:55:20.283Z","label":"maya-jump-01","phase":"postauth","action":"command:whoami","result":"sent"}
+{"ts":"2026-09-26T05:55:20.297Z","label":"maya-jump-01","phase":"postauth","action":"command:whoami","result":"completed"}
+{"ts":"2026-09-26T05:55:21.310Z","label":"maya-jump-01","phase":"postauth","action":"command:uname -a","result":"sent"}
+{"ts":"2026-09-26T05:55:21.321Z","label":"maya-jump-01","phase":"postauth","action":"command:uname -a","result":"completed"}
+{"ts":"2026-09-26T05:55:22.325Z","label":"maya-jump-01","phase":"postauth","action":"command:id","result":"sent"}
+{"ts":"2026-09-26T05:55:22.556Z","label":"maya-jump-01","phase":"postauth","action":"command:id","result":"completed"}
+{"ts":"2026-09-26T05:55:23.561Z","label":"maya-jump-01","phase":"postauth","action":"command:cat /etc/passwd","result":"sent"}
+{"ts":"2026-09-26T05:55:23.778Z","label":"maya-jump-01","phase":"postauth","action":"command:cat /etc/passwd","result":"completed"}
+{"ts":"2026-09-26T05:55:24.781Z","label":"maya-jump-01","phase":"postauth","action":"command:ls -la /","result":"sent"}
+{"ts":"2026-09-26T05:55:25.034Z","label":"maya-jump-01","phase":"postauth","action":"command:ls -la /","result":"completed"}
+{"ts":"2026-09-26T05:55:26.038Z","label":"maya-jump-01","phase":"postauth","action":"command:ps aux","result":"sent"}
+{"ts":"2026-09-26T05:55:26.257Z","label":"maya-jump-01","phase":"postauth","action":"command:ps aux","result":"completed"}
+{"ts":"2026-09-26T05:55:27.261Z","label":"maya-jump-01","phase":"postauth","action":"command:netstat -tulpn || ss -tulpn","result":"sent"}
+{"ts":"2026-09-26T05:55:27.485Z","label":"maya-jump-01","phase":"postauth","action":"command:netstat -tulpn || ss -tulpn","result":"completed"}
+{"ts":"2026-09-26T05:55:28.490Z","label":"maya-jump-01","phase":"postauth","action":"command:cat /etc/hosts","result":"sent"}
+{"ts":"2026-09-26T05:55:28.704Z","label":"maya-jump-01","phase":"postauth","action":"command:cat /etc/hosts","result":"completed"}
+{"ts":"2026-09-26T05:55:29.708Z","label":"maya-jump-01","phase":"postauth","action":"command:find / -maxdepth 2 -name '*.conf' 2>/dev/null","result":"sent"}
+{"ts":"2026-09-26T05:55:29.947Z","label":"maya-jump-01","phase":"postauth","action":"command:find / -maxdepth 2 -name '*.conf' 2>/dev/null","result":"completed"}
+{"ts":"2026-09-26T05:55:30.952Z","label":"maya-jump-01","phase":"postauth","action":"ssh_session","result":"closed"}
+{"ts":"2026-09-26T05:55:30.954Z","label":"maya-jump-01","phase":"exfil","action":"large_transfer_attempt","result":"sent"}
+{"ts":"2026-09-26T05:55:31.277Z","label":"maya-jump-01","phase":"exfil","action":"large_transfer_attempt","result":"completed"}

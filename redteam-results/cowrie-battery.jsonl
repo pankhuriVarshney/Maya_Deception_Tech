@@ -1,0 +1,56 @@
+{"ts":"2026-09-23T16:00:57.199Z","label":"cowrie","phase":"recon","action":"nmap_start","result":"started"}
+{"ts":"2026-09-23T16:01:09.474Z","label":"cowrie","phase":"recon","action":"nmap_scan","result":"completed"}
+{"ts":"2026-09-23T16:01:09.477Z","label":"cowrie","phase":"bruteforce","action":"ssh_login_attempt:admin","result":"attempting"}
+{"ts":"2026-09-23T16:01:09.673Z","label":"cowrie","phase":"bruteforce","action":"ssh_login_attempt:admin","result":"unexpected_success"}
+{"ts":"2026-09-23T16:01:09.674Z","label":"cowrie","phase":"bruteforce","action":"ssh_login_attempt:admin","result":"attempting"}
+{"ts":"2026-09-23T16:01:09.827Z","label":"cowrie","phase":"bruteforce","action":"ssh_login_attempt:admin","result":"unexpected_success"}
+{"ts":"2026-09-23T16:01:09.828Z","label":"cowrie","phase":"bruteforce","action":"ssh_login_attempt:admin","result":"attempting"}
+{"ts":"2026-09-23T16:01:10.022Z","label":"cowrie","phase":"bruteforce","action":"ssh_login_attempt:admin","result":"unexpected_success"}
+{"ts":"2026-09-23T16:01:10.023Z","label":"cowrie","phase":"bruteforce","action":"ssh_login_attempt:admin","result":"attempting"}
+{"ts":"2026-09-23T16:01:10.181Z","label":"cowrie","phase":"bruteforce","action":"ssh_login_attempt:admin","result":"unexpected_success"}
+{"ts":"2026-09-23T16:01:10.182Z","label":"cowrie","phase":"bruteforce","action":"ssh_login_attempt:root","result":"attempting"}
+{"ts":"2026-09-23T16:01:10.254Z","label":"cowrie","phase":"bruteforce","action":"ssh_login_attempt:root","result":"unexpected_success"}
+{"ts":"2026-09-23T16:01:10.256Z","label":"cowrie","phase":"bruteforce","action":"ssh_login_attempt:root","result":"attempting"}
+{"ts":"2026-09-23T16:01:10.332Z","label":"cowrie","phase":"bruteforce","action":"ssh_login_attempt:root","result":"unexpected_success"}
+{"ts":"2026-09-23T16:01:10.334Z","label":"cowrie","phase":"bruteforce","action":"ssh_login_attempt:root","result":"attempting"}
+{"ts":"2026-09-23T16:01:10.413Z","label":"cowrie","phase":"bruteforce","action":"ssh_login_attempt:root","result":"unexpected_success"}
+{"ts":"2026-09-23T16:01:10.415Z","label":"cowrie","phase":"bruteforce","action":"ssh_login_attempt:root","result":"attempting"}
+{"ts":"2026-09-23T16:01:10.494Z","label":"cowrie","phase":"bruteforce","action":"ssh_login_attempt:root","result":"unexpected_success"}
+{"ts":"2026-09-23T16:01:10.497Z","label":"cowrie","phase":"bruteforce","action":"ssh_login_attempt:guest","result":"attempting"}
+{"ts":"2026-09-23T16:01:10.653Z","label":"cowrie","phase":"bruteforce","action":"ssh_login_attempt:guest","result":"unexpected_success"}
+{"ts":"2026-09-23T16:01:10.654Z","label":"cowrie","phase":"bruteforce","action":"ssh_login_attempt:guest","result":"attempting"}
+{"ts":"2026-09-23T16:01:10.796Z","label":"cowrie","phase":"bruteforce","action":"ssh_login_attempt:guest","result":"unexpected_success"}
+{"ts":"2026-09-23T16:01:10.797Z","label":"cowrie","phase":"bruteforce","action":"ssh_login_attempt:guest","result":"attempting"}
+{"ts":"2026-09-23T16:01:10.951Z","label":"cowrie","phase":"bruteforce","action":"ssh_login_attempt:guest","result":"unexpected_success"}
+{"ts":"2026-09-23T16:01:10.952Z","label":"cowrie","phase":"bruteforce","action":"ssh_login_attempt:guest","result":"attempting"}
+{"ts":"2026-09-23T16:01:11.166Z","label":"cowrie","phase":"bruteforce","action":"ssh_login_attempt:guest","result":"unexpected_success"}
+{"ts":"2026-09-23T16:01:11.167Z","label":"cowrie","phase":"bruteforce","action":"ssh_login_attempt:test","result":"attempting"}
+{"ts":"2026-09-23T16:01:11.306Z","label":"cowrie","phase":"bruteforce","action":"ssh_login_attempt:test","result":"unexpected_success"}
+{"ts":"2026-09-23T16:01:11.308Z","label":"cowrie","phase":"bruteforce","action":"ssh_login_attempt:test","result":"attempting"}
+{"ts":"2026-09-23T16:01:11.455Z","label":"cowrie","phase":"bruteforce","action":"ssh_login_attempt:test","result":"unexpected_success"}
+{"ts":"2026-09-23T16:01:11.456Z","label":"cowrie","phase":"bruteforce","action":"ssh_login_attempt:test","result":"attempting"}
+{"ts":"2026-09-23T16:01:11.605Z","label":"cowrie","phase":"bruteforce","action":"ssh_login_attempt:test","result":"unexpected_success"}
+{"ts":"2026-09-23T16:01:11.606Z","label":"cowrie","phase":"bruteforce","action":"ssh_login_attempt:test","result":"attempting"}
+{"ts":"2026-09-23T16:01:11.816Z","label":"cowrie","phase":"bruteforce","action":"ssh_login_attempt:test","result":"unexpected_success"}
+{"ts":"2026-09-23T16:01:11.817Z","label":"cowrie","phase":"postauth","action":"ssh_login","result":"attempting"}
+{"ts":"2026-09-23T16:01:11.819Z","label":"cowrie","phase":"postauth","action":"command:whoami","result":"sent"}
+{"ts":"2026-09-23T16:01:11.887Z","label":"cowrie","phase":"postauth","action":"command:whoami","result":"completed"}
+{"ts":"2026-09-23T16:01:12.892Z","label":"cowrie","phase":"postauth","action":"command:uname -a","result":"sent"}
+{"ts":"2026-09-23T16:01:12.978Z","label":"cowrie","phase":"postauth","action":"command:uname -a","result":"completed"}
+{"ts":"2026-09-23T16:01:13.983Z","label":"cowrie","phase":"postauth","action":"command:id","result":"sent"}
+{"ts":"2026-09-23T16:01:14.067Z","label":"cowrie","phase":"postauth","action":"command:id","result":"completed"}
+{"ts":"2026-09-23T16:01:15.070Z","label":"cowrie","phase":"postauth","action":"command:cat /etc/passwd","result":"sent"}
+{"ts":"2026-09-23T16:01:15.139Z","label":"cowrie","phase":"postauth","action":"command:cat /etc/passwd","result":"completed"}
+{"ts":"2026-09-23T16:01:16.143Z","label":"cowrie","phase":"postauth","action":"command:ls -la /","result":"sent"}
+{"ts":"2026-09-23T16:01:16.223Z","label":"cowrie","phase":"postauth","action":"command:ls -la /","result":"completed"}
+{"ts":"2026-09-23T16:01:17.227Z","label":"cowrie","phase":"postauth","action":"command:ps aux","result":"sent"}
+{"ts":"2026-09-23T16:01:17.314Z","label":"cowrie","phase":"postauth","action":"command:ps aux","result":"completed"}
+{"ts":"2026-09-23T16:01:18.319Z","label":"cowrie","phase":"postauth","action":"command:netstat -tulpn || ss -tulpn","result":"sent"}
+{"ts":"2026-09-23T16:01:18.409Z","label":"cowrie","phase":"postauth","action":"command:netstat -tulpn || ss -tulpn","result":"completed"}
+{"ts":"2026-09-23T16:01:19.413Z","label":"cowrie","phase":"postauth","action":"command:cat /etc/hosts","result":"sent"}
+{"ts":"2026-09-23T16:01:19.494Z","label":"cowrie","phase":"postauth","action":"command:cat /etc/hosts","result":"completed"}
+{"ts":"2026-09-23T16:01:20.499Z","label":"cowrie","phase":"postauth","action":"command:find / -maxdepth 2 -name '*.conf' 2>/dev/null","result":"sent"}
+{"ts":"2026-09-23T16:01:20.604Z","label":"cowrie","phase":"postauth","action":"command:find / -maxdepth 2 -name '*.conf' 2>/dev/null","result":"completed"}
+{"ts":"2026-09-23T16:01:21.608Z","label":"cowrie","phase":"postauth","action":"ssh_session","result":"closed"}
+{"ts":"2026-09-23T16:01:21.610Z","label":"cowrie","phase":"exfil","action":"large_transfer_attempt","result":"sent"}
+{"ts":"2026-09-23T16:01:21.697Z","label":"cowrie","phase":"exfil","action":"large_transfer_attempt","result":"completed"}

@@ -1,0 +1,195 @@
+=== whoami ===
+** WARNING: connection is not using a post-quantum key exchange algorithm.
+** This session may be vulnerable to "store now, decrypt later" attacks.
+** The server may need to be upgraded. See https://openssh.com/pq.html
+root
+=== uname -a ===
+** WARNING: connection is not using a post-quantum key exchange algorithm.
+** This session may be vulnerable to "store now, decrypt later" attacks.
+** The server may need to be upgraded. See https://openssh.com/pq.html
+Linux svr04 6.1.0-21-amd64 #1 SMP PREEMPT_DYNAMIC Debian 6.1.90-1 (2024-05-03) x86_64 GNU/Linux
+=== id ===
+** WARNING: connection is not using a post-quantum key exchange algorithm.
+** This session may be vulnerable to "store now, decrypt later" attacks.
+** The server may need to be upgraded. See https://openssh.com/pq.html
+uid=0(root) gid=0(root) groups=0(root)
+=== cat /etc/passwd ===
+** WARNING: connection is not using a post-quantum key exchange algorithm.
+** This session may be vulnerable to "store now, decrypt later" attacks.
+** The server may need to be upgraded. See https://openssh.com/pq.html
+root:x:0:0:root:/root:/bin/bash
+daemon:x:1:1:daemon:/usr/sbin:/bin/sh
+bin:x:2:2:bin:/bin:/bin/sh
+sys:x:3:3:sys:/dev:/bin/sh
+sync:x:4:65534:sync:/bin:/bin/sync
+games:x:5:60:games:/usr/games:/bin/sh
+man:x:6:12:man:/var/cache/man:/bin/sh
+lp:x:7:7:lp:/var/spool/lpd:/bin/sh
+mail:x:8:8:mail:/var/mail:/bin/sh
+news:x:9:9:news:/var/spool/news:/bin/sh
+uucp:x:10:10:uucp:/var/spool/uucp:/bin/sh
+proxy:x:13:13:proxy:/bin:/bin/sh
+www-data:x:33:33:www-data:/var/www:/bin/sh
+backup:x:34:34:backup:/var/backups:/bin/sh
+list:x:38:38:Mailing List Manager:/var/list:/bin/sh
+irc:x:39:39:ircd:/var/run/ircd:/bin/sh
+gnats:x:41:41:Gnats Bug-Reporting System (admin):/var/lib/gnats:/bin/sh
+nobody:x:65534:65534:nobody:/nonexistent:/bin/sh
+libuuid:x:100:101::/var/lib/libuuid:/bin/sh
+sshd:x:101:65534::/var/run/sshd:/usr/sbin/nologin
+phil:x:1000:1000:Phil California,,,:/home/phil:/bin/bash
+=== ls -la / ===
+** WARNING: connection is not using a post-quantum key exchange algorithm.
+** This session may be vulnerable to "store now, decrypt later" attacks.
+** The server may need to be upgraded. See https://openssh.com/pq.html
+drwxr-xr-x 1 root root    0 2024-06-12 00:00 .
+drwxr-xr-x 1 root root    0 2024-06-12 00:00 ..
+-rwxr-xr-x 1 root root    0 2026-05-04 14:44 .dockerenv
+lrwxrwxrwx 1 root root    7 2024-06-12 00:00 bin -> usr/bin
+drwxr-xr-x 1 root root 4096 2024-01-28 21:20 boot
+drwxr-xr-x 1 root root  340 2026-05-04 14:44 dev
+drwxr-xr-x 1 root root 4096 2026-05-04 14:46 etc
+drwxr-xr-x 1 root root 4096 2024-01-28 21:20 home
+lrwxrwxrwx 1 root root    7 2024-06-12 00:00 lib -> usr/lib
+lrwxrwxrwx 1 root root    9 2024-06-12 00:00 lib64 -> usr/lib64
+drwxr-xr-x 1 root root 4096 2024-06-12 00:00 media
+drwxr-xr-x 1 root root 4096 2024-06-12 00:00 mnt
+drwxr-xr-x 1 root root 4096 2024-06-12 00:00 opt
+dr-xr-xr-x 1 root root    0 2026-05-04 14:44 proc
+drwx------ 1 root root 4096 2024-06-12 00:00 root
+drwxr-xr-x 1 root root 4096 2026-05-04 14:46 run
+lrwxrwxrwx 1 root root    8 2024-06-12 00:00 sbin -> usr/sbin
+drwxr-xr-x 1 root root 4096 2024-06-12 00:00 srv
+dr-xr-xr-x 1 root root    0 2026-05-04 14:44 sys
+drwxrwxrwt 1 root root 4096 2026-05-04 14:46 tmp
+drwxr-xr-x 1 root root 4096 2024-06-12 00:00 usr
+drwxr-xr-x 1 root root 4096 2024-06-12 00:00 var
+=== ps aux ===
+** WARNING: connection is not using a post-quantum key exchange algorithm.
+** This session may be vulnerable to "store now, decrypt later" attacks.
+** The server may need to be upgraded. See https://openssh.com/pq.html
+USER         PID   %CPU       %MEM       VSZ       RSS       TTY     STAT  START
+root         1     0.0        0.89       180281344 4587520   ?       Ss    Jul22
+root         2     0.0        0.0        0         0         ?       S<    Jul22
+root         3     0.0        0.0        0         0         ?       S<    Jul22
+root         5     0.0        0.0        0         0         ?       D<    Jul22
+root         7     0.0        0.0        0         0         ?       Ss    Jul22
+root         8     0.0        0.0        0         0         ?       Ss+   Jul22
+root         9     0.0        0.0        0         0         ?       Ss+   Jul22
+root         10    0.0        0.0        0         0         ?       S<    Jul22
+root         11    0.0        0.0        0         0         ?       D<    Jul22
+root         12    0.0        0.0        0         0         ?       Ss+   Jul22
+root         13    0.0        0.0        0         0         ?       Ss    Jul22
+root         15    0.0        0.0        0         0         ?       D<    Jul22
+root         16    0.0        0.0        0         0         ?       D<    Jul22
+root         17    0.0        0.0        0         0         ?       S<    Jul22
+root         18    0.0        0.0        0         0         ?       Ss    Jul22
+root         19    0.0        0.0        0         0         ?       D<    Jul22
+root         20    0.0        0.0        0         0         ?       S<    Jul22
+root         21    0.0        0.0        0         0         ?       S<    Jul22
+root         22    0.0        0.0        0         0         ?       S<    Jul22
+root         23    0.0        0.0        0         0         ?       S<    Jul22
+root         24    0.0        0.0        0         0         ?       D<    Jul22
+root         25    0.0        0.0        0         0         ?       Ss+   Jul22
+root         27    0.0        0.0        0         0         ?       Ss    Jul22
+root         28    0.0        0.0        0         0         ?       S<    Jul22
+root         29    0.0        0.0        0         0         ?       S<    Jul22
+root         35    0.0        0.0        0         0         ?       S<    Jul22
+root         37    0.0        0.0        0         0         ?       S<    Jul22
+root         38    0.0        0.0        0         0         ?       D<    Jul22
+root         39    0.0        0.0        0         0         ?       D<    Jul22
+root         74    0.0        0.0        0         0         ?       Ss    Jul22
+root         75    0.0        0.0        0         0         ?       Ss+   Jul22
+root         78    0.0        0.0        0         0         ?       S<    Jul22
+root         79    0.0        0.0        0         0         ?       Ss+   Jul22
+root         80    0.0        0.0        0         0         ?       Ss    Jul22
+root         83    0.0        0.0        0         0         ?       Ss    Jul22
+root         88    0.0        0.0        0         0         ?       D<    Jul22
+root         103   0.0        0.0        0         0         ?       D<    Jul22
+root         104   0.0        0.0        0         0         ?       Ss+   Jul22
+root         135   0.0        0.0        0         0         ?       Ss+   Jul22
+root         141   0.0        0.43       41754624  2211840   ?       Ss    Jul22
+root         150   0.0        1.12       38326272  5820416   ?       S<    Jul22
+root         360   0.0        0.35       37969920  1789952   ?       Ss    Jul22
+statd        382   0.0        0.34       38174720  1748992   ?       Ss+   Jul22
+root         387   0.0        0.0        0         0         ?       D<    Jul22
+root         392   0.0        0.0        0         0         ?       Ss    Jul22
+root         407   0.0        0.0        23916544  12288     ?       Ss    Jul22
+root         413   0.0        0.31       19480576  1597440   ?       Ss    Jul22
+root         414   0.0        0.51       28135424  2641920   ?       Ss    Jul22
+root         417   0.0        0.34       20332544  1757184   ?       Ss+   Jul22
+messagebus   419   0.0        0.51       43245568  2646016   ?       Ss+   Jul22
+root         425   0.0        0.4        264880128 2088960   ?       D<    Jul22
+root         427   0.0        0.31       4358144   1585152   ?       Ss    Jul22
+root         442   0.0        0.33       14761984  1708032   tty1    Ss    Jul22
+root         448   0.0        0.59       56508416  3067904   ?       D<    Jul22
+Debian-exim  682   0.0        0.42       54530048  2154496   ?       D<    Jul22
+root         697   0.0        0.11       26009600  589824    ?       Ss    Jul22
+root         8574  0.0        0.0        0         0         ?       Ss+   Jul22
+root         8611  0.0        0.0        0         0         ?       D<    Jul22
+root         8743  0.0        0.21       307101696 1064960   ?       Ss    Jul22
+root         9030  0.0        0.47       26009600  2424832   ?       Ss+   Jul22
+root         21704 0.0        0.29       4440064   1507328   ?       D<    Jul22
+mysql        22049 0.0        9.28       137470771248103424  ?       S<    Jul22
+ejabberd     25061 0.0        0.05       27955200  233472    ?       Ss    Jul23
+root         25065 0.0        0.0        0         0         ?       Ss+   Jul23
+ejabberd     25095 0.0        8.87       968404992 45989888  ?       Ss    Jul23
+root         25970 0.0        0.0        0         0         ?       D<    Jul23
+root         26418 0.0        0.6        93380608  3092480   ?       Ss+   Jul23
+www-data     26419 0.0        0.73       93704192  3760128   ?       Ss+   Jul23
+www-data     26420 0.0        0.73       93704192  3760128   ?       D<    Jul23
+www-data     26421 0.0        0.73       93704192  3760128   ?       Ss+   Jul23
+www-data     26422 0.0        0.73       93704192  3760128   ?       D<    Jul23
+root         28001 0.0        0.0        0         0         ?       Ss    Jul23
+root         28002 0.0        0.0        0         0         ?       Ss    Jul23
+root         5904  0.0        0.1        5416      1024      ?       Ss    Jul22
+root         5909  0.0        0.1        5416      1024      pts/0   Ss    06:30
+root         5911  0.0        0.1        2435      929       pts/0   Ss    06:30
+=== netstat -tulpn || ss -tulpn ===
+** WARNING: connection is not using a post-quantum key exchange algorithm.
+** This session may be vulnerable to "store now, decrypt later" attacks.
+** The server may need to be upgraded. See https://openssh.com/pq.html
+Active Internet connections (w/o servers)
+Proto Recv-Q Send-Q Local Address           Foreign Address         State
+tcp        0      0 *:ssh                   *:*                     LISTEN
+tcp6       0      0 [::]:ssh                [::]:*                  LISTEN
+Active UNIX domain sockets (only servers)
+Proto RefCnt Flags       Type       State         I-Node   Path
+unix  2      [ ACC ]     STREAM     LISTENING     8969     /var/run/acpid.socket
+unix  2      [ ACC ]     STREAM     LISTENING     6807     @/com/ubuntu/upstart
+unix  2      [ ACC ]     STREAM     LISTENING     7299     /var/run/dbus/system_bus_socket
+unix  2      [ ACC ]     SEQPACKET  LISTENING     7159     /run/udev/control
+=== cat /etc/hosts ===
+** WARNING: connection is not using a post-quantum key exchange algorithm.
+** This session may be vulnerable to "store now, decrypt later" attacks.
+** The server may need to be upgraded. See https://openssh.com/pq.html
+127.0.0.1	localhost
+127.0.1.1	nas3
+
+# The following lines are desirable for IPv6 capable hosts
+::1     localhost ip6-localhost ip6-loopback
+ff02::1 ip6-allnodes
+ff02::2 ip6-allrouters
+=== find / -maxdepth 2 -name '*.conf' 2>/dev/null ===
+** WARNING: connection is not using a post-quantum key exchange algorithm.
+** This session may be vulnerable to "store now, decrypt later" attacks.
+** The server may need to be upgraded. See https://openssh.com/pq.html
+/etc/xattr.conf
+/etc/host.conf
+/etc/deluser.conf
+/etc/adduser.conf
+/etc/e2scrub.conf
+/etc/gai.conf
+/etc/ld.so.conf
+/etc/nsswitch.conf
+/etc/resolv.conf
+/etc/libaudit.conf
+/etc/mke2fs.conf
+/etc/debconf.conf
+/etc/pam.conf
+/etc/ucf.conf
+/etc/sysctl.conf
+** WARNING: connection is not using a post-quantum key exchange algorithm.
+** This session may be vulnerable to "store now, decrypt later" attacks.
+** The server may need to be upgraded. See https://openssh.com/pq.html
+cm9vdDp4OjA6MDpyb290Oi9yb290Oi9iaW4vYmFzaApkYWVtb246eDoxOjE6ZGFlbW9uOi91c3Ivc2JpbjovYmluL3NoCmJpbjp4OjI6MjpiaW46L2JpbjovYmluL3NoCnN5czp4OjM6MzpzeXM6L2RldjovYmluL3NoCnN5bmM6eDo0OjY1NTM0OnN5bmM6L2JpbjovYmluL3N5bmMKZ2FtZXM6eDo1OjYwOmdhbWVzOi91c3IvZ2FtZXM6L2Jpbi9zaAptYW46eDo2OjEyOm1hbjovdmFyL2NhY2hlL21hbjovYmluL3NoCmxwOng6Nzo3OmxwOi92YXIvc3Bvb2wvbHBkOi9iaW4vc2gKbWFpbDp4Ojg6ODptYWlsOi92YXIvbWFpbDovYmluL3NoCm5ld3M6eDo5Ojk6bmV3czovdmFyL3Nwb29sL25ld3M6L2Jpbi9zaAp1dWNwOng6MTA6MTA6dXVjcDovdmFyL3Nwb29sL3V1Y3A6L2Jpbi9zaApwcm94eTp4OjEzOjEzOnByb3h5Oi9iaW46L2Jpbi9zaAp3d3ctZGF0YTp4OjMzOjMzOnd3dy1kYXRhOi92YXIvd3d3Oi9iaW4vc2gKYmFja3VwOng6MzQ6MzQ6YmFja3VwOi92YXIvYmFja3VwczovYmluL3NoCmxpc3Q6eDozODozODpNYWlsaW5nIExpc3QgTWFuYWdlcjovdmFyL2xpc3Q6L2Jpbi9zaAppcmM6eDozOTozOTppcmNkOi92YXIvcnVuL2lyY2Q6L2Jpbi9zaApnbmF0czp4OjQxOjQxOkduYXRzIEJ1Zy1SZXBvcnRpbmcgU3lzdGVtIChhZG1pbik6L3Zhci9saWIvZ25hdHM6L2Jpbi9zaApub2JvZHk6eDo2NTUzNDo2NTUzNDpub2JvZHk6L25vbmV4aXN0ZW50Oi9iaW4vc2gKbGlidXVpZDp4OjEwMDoxMDE6Oi92YXIvbGliL2xpYnV1aWQ6L2Jpbi9zaApzc2hkOng6MTAxOjY1NTM0OjovdmFyL3J1bi9zc2hkOi91c3Ivc2Jpbi9ub2xvZ2luCnBoaWw6eDoxMDAwOjEwMDA6UGhpbCBDYWxpZm9ybmlhLCwsOi9ob21lL3BoaWw6L2Jpbi9iYXNoCg==
