@@ -1,0 +1,111 @@
+=== whoami ===
+kex_exchange_identification: read: Connection reset by peer
+Connection reset by 127.0.0.1 port 30022
+(command failed or connection dropped)
+=== uname -a ===
+kex_exchange_identification: read: Connection reset by peer
+Connection reset by 127.0.0.1 port 30022
+(command failed or connection dropped)
+=== id ===
+Warning: Permanently added '[127.0.0.1]:30022' (ED25519) to the list of known hosts.
+uid=1000(admin) gid=1000(admin) groups=1000(admin),10(wheel)
+=== cat /etc/passwd ===
+root:x:0:0:root:/root:/bin/ash
+bin:x:1:1:bin:/bin:/sbin/nologin
+daemon:x:2:2:daemon:/sbin:/sbin/nologin
+adm:x:3:4:adm:/var/adm:/sbin/nologin
+lp:x:4:7:lp:/var/spool/lpd:/sbin/nologin
+sync:x:5:0:sync:/sbin:/bin/sync
+shutdown:x:6:0:shutdown:/sbin:/sbin/shutdown
+halt:x:7:0:halt:/sbin:/sbin/halt
+mail:x:8:12:mail:/var/mail:/sbin/nologin
+news:x:9:13:news:/usr/lib/news:/sbin/nologin
+uucp:x:10:14:uucp:/var/spool/uucppublic:/sbin/nologin
+operator:x:11:0:operator:/root:/sbin/nologin
+man:x:13:15:man:/usr/man:/sbin/nologin
+postmaster:x:14:12:postmaster:/var/mail:/sbin/nologin
+cron:x:16:16:cron:/var/spool/cron:/sbin/nologin
+ftp:x:21:21::/var/lib/ftp:/sbin/nologin
+sshd:x:22:22:sshd:/dev/null:/sbin/nologin
+at:x:25:25:at:/var/spool/cron/atjobs:/sbin/nologin
+squid:x:31:31:Squid:/var/cache/squid:/sbin/nologin
+xfs:x:33:33:X Font Server:/etc/X11/fs:/sbin/nologin
+games:x:35:35:games:/usr/games:/sbin/nologin
+cyrus:x:85:12::/usr/cyrus:/sbin/nologin
+vpopmail:x:89:89::/var/vpopmail:/sbin/nologin
+ntp:x:123:123:NTP:/var/empty:/sbin/nologin
+smmsp:x:209:209:smmsp:/var/spool/mqueue:/sbin/nologin
+guest:x:405:100:guest:/dev/null:/sbin/nologin
+nobody:x:65534:65534:nobody:/:/sbin/nologin
+admin:x:1000:1000:Linux User,,,:/home/admin:/bin/ash
+=== ls -la / ===
+total 41
+drwxr-xr-x    1 root     root           120 Sep 26 05:55 .
+drwxr-xr-x    1 root     root           120 Sep 26 05:55 ..
+drwxr-xr-x    1 root     root          4096 Jul 12 05:46 bin
+drwxr-xr-x    6 root     root           380 Sep 26 05:55 dev
+-rwxr-xr-x    1 root     root           409 Jul 12 06:56 entrypoint.sh
+drwxr-xr-x    1 root     root            80 Sep 26 05:55 etc
+drwxr-xr-x    1 root     root          4096 Jul 12 05:46 home
+drwxr-xr-x    1 root     root          4096 Jul 12 05:46 lib
+drwxr-xr-x    1 root     root          4096 Feb 13  2025 media
+drwxr-xr-x    1 root     root          4096 Feb 13  2025 mnt
+drwxr-xr-x    1 root     root          4096 Feb 13  2025 opt
+dr-xr-xr-x   11 root     root             0 Sep 26 05:55 proc
+drwx------    1 root     root          4096 Feb 13  2025 root
+drwxr-xr-x    1 root     root            60 Sep 26 05:55 run
+drwxr-xr-x    1 root     root          4096 Jul 12 05:46 sbin
+drwxr-xr-x    1 root     root          4096 Feb 13  2025 srv
+drwxr-xr-x   12 root     root             0 Sep 26 05:55 sys
+drwxrwxrwt    2 root     root            40 Sep 26 05:55 tmp
+drwxr-xr-x    1 root     root          4096 Feb 13  2025 usr
+drwxr-xr-x    1 root     root            60 Sep 26 05:55 var
+=== ps aux ===
+PID   USER     TIME  COMMAND
+    1 root      0:00 sshd: /usr/sbin/sshd -D -e [listener] 0 of 10-100 startups
+   18 root      0:00 sshd: admin [priv]
+   20 admin     0:00 sshd: admin@notty
+   21 admin     0:00 ps aux
+=== netstat -tulpn || ss -tulpn ===
+Active Internet connections (only servers)
+netstat: can't scan /proc - are you root?
+Proto Recv-Q Send-Q Local Address           Foreign Address         State       PID/Program name    
+tcp        0      0 0.0.0.0:22              0.0.0.0:*               LISTEN      -
+tcp        0      0 :::22                   :::*                    LISTEN      -
+=== cat /etc/hosts ===
+# Kubernetes-managed hosts file.
+127.0.0.1	localhost
+::1	localhost ip6-localhost ip6-loopback
+fe00::0	ip6-localnet
+fe00::0	ip6-mcastprefix
+fe00::1	ip6-allnodes
+fe00::2	ip6-allrouters
+10.244.0.10	jump-01-d7dc8fb4d-hvz4k
+=== find / -maxdepth 2 -name '*.conf' 2>/dev/null ===
+/etc/nsswitch.conf
+/etc/udhcpd.conf
+/etc/sysctl.conf
+/etc/resolv.conf
+(command failed or connection dropped)
+cm9vdDp4OjA6MDpyb290Oi9yb290Oi9iaW4vYXNoCmJpbjp4OjE6MTpiaW46L2Jpbjovc2Jpbi9u
+b2xvZ2luCmRhZW1vbjp4OjI6MjpkYWVtb246L3NiaW46L3NiaW4vbm9sb2dpbgphZG06eDozOjQ6
+YWRtOi92YXIvYWRtOi9zYmluL25vbG9naW4KbHA6eDo0Ojc6bHA6L3Zhci9zcG9vbC9scGQ6L3Ni
+aW4vbm9sb2dpbgpzeW5jOng6NTowOnN5bmM6L3NiaW46L2Jpbi9zeW5jCnNodXRkb3duOng6Njow
+OnNodXRkb3duOi9zYmluOi9zYmluL3NodXRkb3duCmhhbHQ6eDo3OjA6aGFsdDovc2Jpbjovc2Jp
+bi9oYWx0Cm1haWw6eDo4OjEyOm1haWw6L3Zhci9tYWlsOi9zYmluL25vbG9naW4KbmV3czp4Ojk6
+MTM6bmV3czovdXNyL2xpYi9uZXdzOi9zYmluL25vbG9naW4KdXVjcDp4OjEwOjE0OnV1Y3A6L3Zh
+ci9zcG9vbC91dWNwcHVibGljOi9zYmluL25vbG9naW4Kb3BlcmF0b3I6eDoxMTowOm9wZXJhdG9y
+Oi9yb290Oi9zYmluL25vbG9naW4KbWFuOng6MTM6MTU6bWFuOi91c3IvbWFuOi9zYmluL25vbG9n
+aW4KcG9zdG1hc3Rlcjp4OjE0OjEyOnBvc3RtYXN0ZXI6L3Zhci9tYWlsOi9zYmluL25vbG9naW4K
+Y3Jvbjp4OjE2OjE2OmNyb246L3Zhci9zcG9vbC9jcm9uOi9zYmluL25vbG9naW4KZnRwOng6MjE6
+MjE6Oi92YXIvbGliL2Z0cDovc2Jpbi9ub2xvZ2luCnNzaGQ6eDoyMjoyMjpzc2hkOi9kZXYvbnVs
+bDovc2Jpbi9ub2xvZ2luCmF0Ong6MjU6MjU6YXQ6L3Zhci9zcG9vbC9jcm9uL2F0am9iczovc2Jp
+bi9ub2xvZ2luCnNxdWlkOng6MzE6MzE6U3F1aWQ6L3Zhci9jYWNoZS9zcXVpZDovc2Jpbi9ub2xv
+Z2luCnhmczp4OjMzOjMzOlggRm9udCBTZXJ2ZXI6L2V0Yy9YMTEvZnM6L3NiaW4vbm9sb2dpbgpn
+YW1lczp4OjM1OjM1OmdhbWVzOi91c3IvZ2FtZXM6L3NiaW4vbm9sb2dpbgpjeXJ1czp4Ojg1OjEy
+OjovdXNyL2N5cnVzOi9zYmluL25vbG9naW4KdnBvcG1haWw6eDo4OTo4OTo6L3Zhci92cG9wbWFp
+bDovc2Jpbi9ub2xvZ2luCm50cDp4OjEyMzoxMjM6TlRQOi92YXIvZW1wdHk6L3NiaW4vbm9sb2dp
+bgpzbW1zcDp4OjIwOToyMDk6c21tc3A6L3Zhci9zcG9vbC9tcXVldWU6L3NiaW4vbm9sb2dpbgpn
+dWVzdDp4OjQwNToxMDA6Z3Vlc3Q6L2Rldi9udWxsOi9zYmluL25vbG9naW4Kbm9ib2R5Ong6NjU1
+MzQ6NjU1MzQ6bm9ib2R5Oi86L3NiaW4vbm9sb2dpbgphZG1pbjp4OjEwMDA6MTAwMDpMaW51eCBV
+c2VyLCwsOi9ob21lL2FkbWluOi9iaW4vYXNoCg==

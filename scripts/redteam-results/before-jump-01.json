@@ -1,0 +1,13 @@
+{
+  "name": "jump-01",
+  "status": "running",
+  "ip": "10.244.0.12",
+  "lastSeen": "2026-09-23T16:44:27.429Z",
+  "crdtState": {
+    "attackers": 0,
+    "credentials": 0,
+    "sessions": 0,
+    "hash": ""
+  },
+  "dockerContainers": []
+}
