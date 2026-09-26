@@ -18,7 +18,9 @@ RUN adduser -D admin && \
 # single source of truth.
 
 COPY maya-k8s/docker/jump/entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+COPY maya-k8s/docker/common/decoy-audit-wrapper.sh /usr/local/bin/decoy-audit-wrapper.sh
+COPY maya-k8s/docker/common/maya-audit-bashrc.sh /etc/maya-audit-bashrc
+RUN chmod +x /entrypoint.sh /usr/local/bin/decoy-audit-wrapper.sh
 
 # The CRDT engine (scripts/crdt/) no longer lives in this image -- it runs
 # in a separate crdt-sync sidecar container in the same Pod (see

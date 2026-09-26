@@ -41,6 +41,8 @@ spec:
                   key: password
             - name: MAYA_STATE_FILE
               value: /var/lib/.state/.syscache
+            - name: MAYA_DECOY_NAME
+              value: web-03
           volumeMounts:
             - name: fake-content
               mountPath: /var/www/html

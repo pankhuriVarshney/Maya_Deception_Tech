@@ -120,6 +120,114 @@ fn sync_with_peers(state_file: &str, last_hash: &mut String) {
     log_to_file(&format!("Sync cycle complete: {} successful, {} failed", successful_syncs, failed_syncs));
 }
 
+fn state_dir() -> String {
+    std::path::Path::new(state_file())
+        .parent()
+        .map(|p| p.to_string_lossy().to_string())
+        .unwrap_or_else(|| ".".to_string())
+}
+
+fn audit_log_path() -> String {
+    format!("{}/.audit.jsonl", state_dir())
+}
+
+// K8s decoys have no rsyslog/auth.log -- their entrypoint.sh redirects
+// sshd's own `-e` stderr debug stream into this file on the same shared
+// volume instead (see maya-k8s/docker/jump/entrypoint.sh and the
+// supervisord.conf stderr_logfile overrides for ftp/redis/web). Vagrant
+// VMs still have a real /var/log/auth.log, so prefer whichever exists.
+fn sshd_log_path() -> String {
+    let shared = format!("{}/.sshd_auth.log", state_dir());
+    if std::path::Path::new(&shared).exists() {
+        shared
+    } else {
+        "/var/log/auth.log".to_string()
+    }
+}
+
+fn extract_ip(line: &str) -> Option<String> {
+    line.split_whitespace()
+        .find(|part| part.parse::<std::net::Ipv4Addr>().is_ok())
+        .map(|s| s.to_string())
+}
+
+fn extract_user_after<'a>(line: &'a str, marker: &str) -> Option<&'a str> {
+    let idx = line.find(marker)?;
+    line[idx + marker.len()..].split_whitespace().next()
+}
+
+// Ground-truth per-command/session detail from a K8s decoy's ForceCommand
+// wrapper and interactive-session bashrc hook (maya-k8s/docker/common/) --
+// both just append plain JSON lines here, since the decoy container never
+// has this binary or any CRDT logic available to an attacker with a shell
+// in it (see maya-k8s/docker/crdt-sync/Dockerfile's security rationale).
+// No-op if the file doesn't exist -- the Vagrant path is unaffected.
+fn process_audit_log(state: &mut MayaState) {
+    let path = audit_log_path();
+    let Ok(contents) = std::fs::read_to_string(&path) else { return };
+    if contents.trim().is_empty() { return; }
+
+    for line in contents.lines() {
+        let Ok(event) = serde_json::from_str::<serde_json::Value>(line) else { continue };
+        let attacker_ip = event.get("attacker_ip").and_then(|v| v.as_str()).unwrap_or("unknown");
+        let decoy = event.get("decoy").and_then(|v| v.as_str()).unwrap_or("unknown");
+        match event.get("kind").and_then(|v| v.as_str()) {
+            Some("session") => {
+                let session_id = event.get("session_id").and_then(|v| v.as_str()).unwrap_or("unknown");
+                state.observe_visit(attacker_ip, decoy);
+                state.add_session(decoy, session_id);
+            }
+            Some("action") => {
+                if let Some(action) = event.get("action").and_then(|v| v.as_str()) {
+                    state.record_action(attacker_ip, decoy, action);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    // Consumed, not a growing log -- each line is a real event, replaying
+    // the same line on the next cycle would double-count it.
+    let _ = std::fs::write(&path, "");
+}
+
+// Successful/failed SSH auth attempts. Real sshd never exposes the
+// attempted password itself to userspace, so this only ever gives us
+// attacker IPs (any attempt, successful or not) and, for a *successful*
+// login, the username used (recorded as a credential). That's an honest,
+// disclosed asymmetry vs Cowrie's full clear-text capture (see
+// docs/STATUS.md), not a bug -- fixing it would mean a custom PAM module
+// or replacing sshd with a fake server entirely.
+fn process_sshd_log(state: &mut MayaState) {
+    let path = sshd_log_path();
+    let Ok(contents) = std::fs::read_to_string(&path) else { return };
+
+    for line in contents.lines() {
+        let is_accepted = line.contains("Accepted password") || line.contains("Accepted publickey");
+        let is_failed = line.contains("Failed password") || line.contains("Invalid user");
+        if !is_accepted && !is_failed { continue; }
+
+        let Some(ip) = extract_ip(line) else { continue };
+        // Guard, not a truncate -- this log isn't consumed like the audit
+        // one (Vagrant's real auth.log shouldn't be truncated), so dedupe
+        // by checking whether we've already recorded this attacker/cred.
+        if !state.attackers.contains_key(&ip) {
+            state.observe_visit(&ip, "ssh");
+            state.update_location(&ip, "ssh");
+        }
+
+        if is_accepted {
+            let user = extract_user_after(line, "Accepted password for ")
+                .or_else(|| extract_user_after(line, "Accepted publickey for "));
+            if let Some(user) = user {
+                if !state.stolen_creds.elements().contains(user) {
+                    state.add_cred(user);
+                }
+            }
+        }
+    }
+}
+
 fn detect_attacker_id() -> String {
     // Try SSH_CONNECTION first
     if let Ok(conn) = std::env::var("SSH_CONNECTION") {
@@ -324,29 +432,16 @@ fn run_daemon(mut state: MayaState) {
         // 🔥 3. Reload again in case merge modified file
         state = MayaState::load(state_file(), &state.node_id);
 
-        // 🔥 4. Process SSH log (only for new attackers)
-        if let Ok(log) = std::fs::read_to_string("/var/log/auth.log") {
-            for line in log.lines() {
-                if line.contains("Accepted password") || line.contains("Accepted publickey") {
-                    let parts: Vec<&str> = line.split_whitespace().collect();
-                    for part in &parts {
-                        if part.contains('.') && part.parse::<std::net::Ipv4Addr>().is_ok() {
-                            if !state.attackers.contains_key(*part) {
-                                state.observe_visit(part, "ssh");
-                                state.update_location(part, "ssh");
-                                log_to_file(&format!("New attacker detected via SSH: {}", part));
-                            }
-                            break;
-                        }
-                    }
-                }
-            }
-        }
+        // 🔥 4. K8s decoys: ForceCommand/interactive-session audit events
+        process_audit_log(&mut state);
 
-        // 🔥 5. Save only if we actually changed state
+        // 🔥 5. SSH auth attempts (K8s redirected sshd log, or Vagrant's real auth.log)
+        process_sshd_log(&mut state);
+
+        // 🔥 6. Save only if we actually changed state
         state.save(state_file());
 
-        // 🔥 6. Update hash AFTER save
+        // 🔥 7. Update hash AFTER save
         last_hash = hash_file(state_file());
 
         log_to_file(&format!(

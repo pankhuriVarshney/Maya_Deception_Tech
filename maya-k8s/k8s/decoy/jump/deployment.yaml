@@ -39,6 +39,8 @@ spec:
                   key: password
             - name: MAYA_STATE_FILE
               value: /var/lib/.state/.syscache
+            - name: MAYA_DECOY_NAME
+              value: jump-01
           volumeMounts:
             - name: syscache
               mountPath: /var/lib/.state

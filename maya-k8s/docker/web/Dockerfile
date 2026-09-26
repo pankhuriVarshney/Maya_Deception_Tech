@@ -20,7 +20,9 @@ RUN useradd -m -s /bin/bash admin && \
 
 COPY maya-k8s/docker/web/supervisord.conf /etc/supervisor/conf.d/web.conf
 COPY maya-k8s/docker/web/entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+COPY maya-k8s/docker/common/decoy-audit-wrapper.sh /usr/local/bin/decoy-audit-wrapper.sh
+COPY maya-k8s/docker/common/maya-audit-bashrc.sh /etc/maya-audit-bashrc
+RUN chmod +x /entrypoint.sh /usr/local/bin/decoy-audit-wrapper.sh
 
 EXPOSE 22 80
 ENTRYPOINT ["/entrypoint.sh"]

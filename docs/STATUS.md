@@ -36,30 +36,56 @@ yet. This is the actual "brain" of the project's novel claim.
 | Task | Status |
 |---|---|
 | 1-2. Attack battery driver | ✅ Done: `scripts/redteam/run-battery.sh` — recon, brute force, authenticated post-command session, exfil simulation, identical against any SSH target, ground-truth JSONL log |
-| 3. Cowrie stack verification | ⬜ Not started — `scripts/docker/docker-compose.yml` has a Cowrie service, never confirmed to actually start |
+| 3. Cowrie stack verification | ✅ Done — runs on host port 2223 (2222 is the kind cluster's own SSH port); `docker compose -f scripts/docker/docker-compose.yml up -d cowrie` confirmed working |
 | 4. Cowrie log parser + MITRE reclassification | ✅ Done: `backend/src/services/redteam/CowrieLogParser.ts` — parses `cowrie.json`, classifies every command through the same `MitreAttackService` Maya's own simulations use |
 | 5. Metrics + comparison report | ✅ Done: `backend/scripts/redteamReport.ts` |
 | 6. Fingerprint-probe script (stretch) | ⬜ Not started |
 
-**Important finding from building this**: Maya's *passive* detection
-pipeline (real SSH activity → `syslogd-helper` → `CRDTSyncService`) never
-creates `Attacker`/`AttackEvent` records — only aggregate counts in
-`VMStatus.crdtState`. All MITRE-tagged, dashboard-visible attacker detail
-comes exclusively from the simulation engines self-reporting. Separately,
-the CRDT schema's `actions_per_decoy` is a last-write-wins map, so even a
-fix would only ever retain the *latest* action per decoy, not a full
-per-command history. The comparison report is written to be honest about
-this asymmetry (Cowrie logs full command detail natively; Maya currently
-only confirms engagement via count deltas) rather than fabricate a
-like-for-like table.
+**Update — Epic 4 has now actually been run once, against a live kind
+cluster's `jump-01` decoy and a real Cowrie container.** Result: Maya
+showed **0 attackers / 0 credentials / 0 sessions** despite a real
+successful SSH login + 9 post-auth commands + a simulated exfil having
+just happened. Not "less detail than Cowrie" as originally assumed below
+— the K8s decoy images never had *any* passive-detection hook wired in at
+all (`maya-k8s/docker/jump/Dockerfile` never installed the Vagrant-era
+`/etc/profile.d` audit hooks, and those hooks wouldn't have caught a
+scripted `ssh host "cmd"` battery anyway — they only fire for interactive
+login shells, see `docs/dev-notes/REAL_ATTACK_DETECTION_STATUS.md:56-60`).
+Separately, the Cowrie side of that same run was contaminated — its
+`cowrie.json` had 26 sessions/52 logins against a battery that only sent
+17 (16 failed + 1 success), almost certainly opportunistic internet
+scanners hitting the exposed port; restart the Cowrie container
+immediately before each battery run to get a clean log.
 
-**None of Epic 4 has been run.** No docker/red-team tooling exists in the
-sandbox this was built in — verify with:
+**Fix applied** (`scripts/crdt/src/main.rs`, `maya-k8s/docker/{jump,ftp,redis,web}/`,
+`maya-k8s/docker/common/`): each decoy's sshd now runs a `ForceCommand`
+wrapper (`decoy-audit-wrapper.sh`) for its login user — unlike a
+profile.d hook, this fires for *every* session, interactive or a single
+scripted command, without exposing the CRDT binary or its logic inside
+the attacker-reachable decoy container (that separation was a deliberate
+security property, preserved here: the wrapper just appends plain JSON
+lines to the shared volume; only the `crdt-sync` sidecar, which the
+attacker can't see into, turns those into real CRDT state). sshd's own
+Accepted/Failed-password log lines are now also captured on the same
+shared volume, giving login-attempt and successful-credential detection
+without any PAM/auditd dependency.
+
+Still an honest, disclosed asymmetry vs. Cowrie, not a bug: real sshd
+never exposes the attempted **password** on a failed login to userspace
+(only Cowrie, a fake server, can do that), and `actions_per_decoy` is
+still a last-write-wins map, so only the latest command per decoy
+survives a merge, not a full per-command history. Both are called out in
+the comparison report itself.
+
+**Still needed**: rebuild `maya-crdt-sync:dev` and the four decoy images,
+`kind load` them, roll the deployments, and re-run the battery + report to
+confirm the fix in practice:
 ```bash
-docker compose -f scripts/docker/docker-compose.yml up -d cowrie
+docker restart cowrie-ssh   # clean log, avoids the contamination noted above
 ./scripts/redteam/run-battery.sh --target <maya-decoy-ip> --ssh-port <port> --label maya-jump-01 --known-user admin --known-pass 'fakejump01!'
-./scripts/redteam/run-battery.sh --target 127.0.0.1 --ssh-port 2222 --label cowrie --known-user root --known-pass toor
+./scripts/redteam/run-battery.sh --target 127.0.0.1 --ssh-port 2223 --label cowrie --known-user root --known-pass toor
 docker cp cowrie-ssh:/cowrie/cowrie-git/var/log/cowrie/cowrie.json ./cowrie.json
+sleep 35   # crdt-sync's daemon loop only polls the shared audit log every 30s
 cd backend && npx ts-node scripts/redteamReport.ts --battery-log ../redteam-results/maya-jump-01-battery.jsonl --cowrie-log ../cowrie.json --maya-vm jump-01 --out ../redteam-results/report.md
 ```
 
