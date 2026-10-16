@@ -143,6 +143,35 @@ export const COMMAND_SIGNATURES: Record<string, string[]> = {
   'netcat': ['T1095'],
   'socat': ['T1095'],
   'openssl s_client': ['T1573'],
+
+  // Linux/Unix -- the signatures above are almost all Windows, so real
+  // commands captured from the K8s decoys fell through to the generic
+  // T1082 fallback at 0.3 confidence. Bare short commands (id, ps, ls)
+  // are matched by REGEX_PATTERNS below instead, since a substring match
+  // on "id" would hit "valid", "uid", etc.
+  'uname': ['T1082'],
+  'cat /etc/passwd': ['T1087.001', 'T1003.008'],
+  'cat /etc/shadow': ['T1003.008'],
+  '/etc/passwd | base64': ['T1132.001', 'T1003.008'],
+  'cat /etc/hosts': ['T1016'],
+  'cat /etc/os-release': ['T1082'],
+  'ps aux': ['T1057'],
+  'ps -ef': ['T1057'],
+  'ls -la': ['T1083'],
+  'find /': ['T1083'],
+  'ss -tulpn': ['T1049'],
+  'ifconfig': ['T1016'],
+  'ip addr': ['T1016'],
+  'ip route': ['T1016'],
+  'sudo -l': ['T1033', 'T1069'],
+  'crontab': ['T1053.003'],
+  'history -c': ['T1070.003'],
+  'chmod +s': ['T1548.001'],
+  'useradd': ['T1136.001'],
+  'base64': ['T1132.001', 'T1027'],
+  'rm -rf': ['T1485', 'T1070.004'],
+  'iptables -f': ['T1562.004'],
+  'bash -i': ['T1059.004'],
 };
 
 // Regex patterns for fuzzy matching
@@ -167,6 +196,9 @@ export const REGEX_PATTERNS: Array<{ pattern: RegExp; techniques: string[]; name
   { pattern: /attrib.*\+h.*\+s/i, techniques: ['T1564.001'], name: 'Hidden system file' },
   { pattern: /copy.*sethc\.exe/i, techniques: ['T1546.008'], name: 'Sticky keys backdoor' },
   { pattern: /bcdedit.*bootstatuspolicy.*ignoreallfailures/i, techniques: ['T1490'], name: 'Boot recovery disable' },
+  { pattern: /^id(\s|$)/, techniques: ['T1033'], name: 'Unix user identity discovery' },
+  { pattern: /^ps(\s|$)/, techniques: ['T1057'], name: 'Unix process discovery' },
+  { pattern: /^ls(\s|$)/, techniques: ['T1083'], name: 'Unix directory listing' },
 ];
 
 /**
@@ -271,14 +303,16 @@ const DANGEROUS_REGEX_PATTERNS: Array<{ pattern: RegExp; name: string }> = [
   { pattern: /(curl|wget)\s+\S+\s*\|\s*(sh|bash)/i, name: 'Pipe-to-shell download' },
   { pattern: /base64\s+(-d|--decode)\s*\|\s*(sh|bash)/i, name: 'Base64-decoded execution' },
   { pattern: />\s*\/etc\/(passwd|shadow|sudoers)/i, name: 'Overwrite of a system credential file' },
+  { pattern: /(cat|less|more|head|tail)\s+\S*\/etc\/(passwd|shadow)\S*\s*\|\s*(base64|xxd|openssl|nc|ncat|curl|wget)/i, name: 'Credential file encoded or piped out' },
 ];
 
 // Common recon commands that aren't dangerous on their own -- gives every
 // real captured command *some* severity signal, not just the flagged ones.
 const RECON_SIGNATURES: string[] = [
-  'whoami', ' id', 'uname', 'ps aux', 'netstat', 'ss -tulpn',
+  'whoami', 'uname', 'ps aux', 'netstat', 'ss -tulpn',
   'ls -la', 'find /', 'cat /etc/passwd', 'cat /etc/hosts',
 ];
+const RECON_REGEX = /^(id|ps|ls)(\s|$)/;
 
 export function assessCommandRisk(command: string): CommandRiskAssessment {
   const normalized = command.toLowerCase().trim();
@@ -293,7 +327,7 @@ export function assessCommandRisk(command: string): CommandRiskAssessment {
       return { dangerous: true, severity: 'Critical', matchedPattern: name };
     }
   }
-  if (RECON_SIGNATURES.some(sig => normalized.includes(sig))) {
+  if (RECON_SIGNATURES.some(sig => normalized.includes(sig)) || RECON_REGEX.test(normalized)) {
     return { dangerous: false, severity: 'Medium' };
   }
   return { dangerous: false, severity: 'Low' };
