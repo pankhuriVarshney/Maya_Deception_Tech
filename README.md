@@ -6,8 +6,6 @@
 2. Start everything: `docker compose up --build`
 3. Open the dashboard: http://localhost:3000
 
-The dashboard loads with simulated attacker data automatically. Every setting has a working
-default, so step 2 is genuinely all you need on a brand-new machine — no `.env` file required.
 
 **Accessing it from another device** (phone, another computer on the same network): open
 `http://<this-machine's-LAN-IP>:3000` instead of `localhost`. The dashboard automatically talks to
