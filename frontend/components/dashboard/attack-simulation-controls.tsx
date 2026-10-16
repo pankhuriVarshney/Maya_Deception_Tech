@@ -136,6 +136,40 @@ export function AttackSimulationControls() {
     }
   ]
 
+  // The scenario payloads above name Vagrant VMs (fake-jump-01, ...). When
+  // K8s decoys are running, swap in the matching decoy of the same type
+  // (fake-jump-01 -> jump-01, fake-web-01 -> web-03) so the backend's
+  // "K8s first" resolution finds a target instead of falling through to the
+  // Vagrant path and reporting a mock run. With no K8s decoys running the
+  // payload is sent unchanged.
+  const getRunningK8sTargets = async (): Promise<string[]> => {
+    try {
+      const res = await fetch("/api/simulation/k8s-targets")
+      if (!res.ok) return []
+      const json = await res.json()
+      return Array.isArray(json?.data?.targets) ? json.data.targets : []
+    } catch {
+      return []
+    }
+  }
+
+  const toK8sName = (name: string, k8sTargets: string[]) => {
+    const type = name.replace(/^fake-/, "").replace(/-\d+$/, "")
+    return k8sTargets.find((t) => t.startsWith(`${type}-`)) ?? name
+  }
+
+  const resolvePayload = (payload: any, k8sTargets: string[]) => {
+    if (k8sTargets.length === 0) return payload
+    return {
+      ...payload,
+      ...(payload.target && { target: toK8sName(payload.target, k8sTargets) }),
+      ...(payload.source && { source: toK8sName(payload.source, k8sTargets) }),
+      ...(Array.isArray(payload.targets) && {
+        targets: payload.targets.map((t: string) => toK8sName(t, k8sTargets)),
+      }),
+    }
+  }
+
   const runSimulation = async (scenario: SimulationScenario) => {
     setIsRunning(scenario.id)
 
@@ -143,10 +177,12 @@ export function AttackSimulationControls() {
       // FIRST: Refresh VM cache to ensure we have latest running VMs
       await fetch("/api/simulation/refresh-vms", { method: "POST" })
 
+      const k8sTargets = await getRunningK8sTargets()
+
       const response = await fetch(scenario.endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(scenario.payload)
+        body: JSON.stringify(resolvePayload(scenario.payload, k8sTargets))
       })
 
       if (!response.ok) {
@@ -161,8 +197,8 @@ export function AttackSimulationControls() {
       toast({
         title: `${attackType} Simulation ${result.success ? "Started" : "Failed"}`,
         description: result.real
-          ? `${scenario.name} simulation executed on REAL VM infrastructure`
-          : `${scenario.name} simulation (VM not available - using mock data)`,
+          ? `${scenario.name} simulation executed on ${result.platform === "k8s" ? "live K8s decoys" : "REAL VM infrastructure"}`
+          : `${scenario.name} simulation (no running decoy matched - using mock data)`,
         variant: result.real ? "default" : "destructive"
       })
 

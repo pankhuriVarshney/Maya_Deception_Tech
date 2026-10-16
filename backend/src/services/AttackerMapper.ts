@@ -63,7 +63,8 @@ export async function mapToDashboardData(dbAttacker: any): Promise<any> {
     movements,
     decoys,
     realAssetsCount,
-    activeAttackers
+    activeAttackers,
+    commandEvents
   ] = await Promise.all([
     AttackEvent.find({ attackerId }).sort({ timestamp: -1 }).limit(10).lean(),
     Credential.find({ attackerId }).sort({ timestamp: -1 }).limit(5).lean(),
@@ -76,7 +77,15 @@ export async function mapToDashboardData(dbAttacker: any): Promise<any> {
     }),
 
     // Active attackers count (instead of separate await later)
-    getActiveAttackerCount()
+    getActiveAttackerCount(),
+
+    // Command history gets its own, deeper query: the 10-event cap above
+    // is right for the timeline/MITRE summaries but turns a "history" into
+    // just the latest handful of commands.
+    AttackEvent.find({
+      attackerId,
+      $or: [{ type: 'Command Execution' }, { command: { $exists: true, $ne: '' } }],
+    }).sort({ timestamp: -1 }).limit(100).lean()
   ]);
 
   return {
@@ -106,14 +115,14 @@ export async function mapToDashboardData(dbAttacker: any): Promise<any> {
     })) : createDefaultTimeline(dbAttacker),
     mitre: generateMitreFromEvents(events),
     lateralMovement: generateMovementFromData(movements, decoys),
-    commandActivity: events
-      .filter((e: any) => e.type === 'Command Execution' || e.command)
+    commandActivity: commandEvents
       .map((e: any) => ({
         name: e.command || e.description.substring(0, 30),
         severity: mapSeverityValue(e.severity),
         technique: e.technique,
         techniqueName: e.techniqueName,
         dangerous: e.severity === 'Critical',
+        timestamp: e.timestamp,
       })) || createDefaultCommands(),
     behaviorAnalysis: analyzeBehaviors(events, dbAttacker),
     incidentSummary: generateSummaryFromEvents(events),

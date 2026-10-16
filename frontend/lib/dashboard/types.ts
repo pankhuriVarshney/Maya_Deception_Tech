@@ -75,6 +75,7 @@ export type CommandActivityItem = {
   technique?: string // MITRE technique ID, e.g. "T1082"
   techniqueName?: string // e.g. "System Information Discovery"
   dangerous?: boolean
+  timestamp?: string // ISO8601, when the command ran
 }
 
 export type BehaviorItem = {

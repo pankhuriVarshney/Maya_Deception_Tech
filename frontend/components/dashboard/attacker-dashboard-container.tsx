@@ -84,10 +84,8 @@ export function AttackerDashboardContainer({ attackerId, initialDetails }: Attac
 
           <div className="lg:col-span-4 space-y-3">
             <MitreMatrix data={dashboard?.mitre ?? null} loading={loading} />
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <CommandActivity data={dashboard?.commandActivity ?? null} loading={loading} />
-              <BehaviorAnalysis data={dashboard?.behaviorAnalysis ?? null} loading={loading} />
-            </div>
+            <CommandActivity data={dashboard?.commandActivity ?? null} loading={loading} />
+            <BehaviorAnalysis data={dashboard?.behaviorAnalysis ?? null} loading={loading} />
             <IncidentSummary data={dashboard?.incidentSummary ?? null} loading={loading} />
           </div>
         </div>
