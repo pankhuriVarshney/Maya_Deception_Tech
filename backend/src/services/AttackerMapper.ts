@@ -64,7 +64,8 @@ export async function mapToDashboardData(dbAttacker: any): Promise<any> {
     decoys,
     realAssetsCount,
     activeAttackers,
-    commandEvents
+    commandEvents,
+    eventSpan
   ] = await Promise.all([
     AttackEvent.find({ attackerId }).sort({ timestamp: -1 }).limit(10).lean(),
     Credential.find({ attackerId }).sort({ timestamp: -1 }).limit(5).lean(),
@@ -85,14 +86,31 @@ export async function mapToDashboardData(dbAttacker: any): Promise<any> {
     AttackEvent.find({
       attackerId,
       $or: [{ type: 'Command Execution' }, { command: { $exists: true, $ne: '' } }],
-    }).sort({ timestamp: -1 }).limit(100).lean()
+    }).sort({ timestamp: -1 }).limit(100).lean(),
+
+    // First and last recorded event, across all of this attacker's events
+    // (not just the 10 shown) -- the basis for dwell time below.
+    AttackEvent.aggregate([
+      { $match: { attackerId } },
+      { $group: { _id: null, first: { $min: '$timestamp' }, last: { $max: '$timestamp' } } }
+    ])
   ]);
+
+  // Attacker.dwellTime is only ever set by the seed data and by real-attacker
+  // sync; every simulation creates its attacker with dwellTime: 0 and never
+  // updates it. So measure it from the events themselves (first to last), and
+  // keep the stored value as a floor for seeded attackers with no events.
+  const span = eventSpan[0];
+  const observedSeconds = span?.first && span?.last
+    ? Math.max(0, (new Date(span.last).getTime() - new Date(span.first).getTime()) / 1000)
+    : 0;
+  const dwellSeconds = Math.max(observedSeconds, (dbAttacker.dwellTime || 0) * 60);
 
   return {
     overview: {
       activeAttackers,
       deceptionEngagement: calculateEngagement(dbAttacker, events),
-      dwellTimeGained: formatDwellTime(dbAttacker.dwellTime),
+      dwellTimeGained: formatDwell(dwellSeconds),
       realAssetsProtected: realAssetsCount,
       zeroFalsePositives: events.some((e: any) => e.status === 'False Positive') === false,
       riskLevel: dbAttacker.riskLevel,
@@ -160,10 +178,12 @@ function calculateEngagement(attacker: any, events: any[]): string {
   return "Low";
 }
 
-function formatDwellTime(minutes: number): string {
-  const hours = Math.floor(minutes / 60);
-  const mins = minutes % 60;
-  return `${hours}h ${mins}m`;
+// Under a minute reads as seconds -- a scripted attack often finishes in
+// seconds, and "0h 0m" would say nothing happened.
+function formatDwell(seconds: number): string {
+  if (seconds < 60) return `${Math.round(seconds)}s`;
+  const totalMinutes = Math.floor(seconds / 60);
+  return `${Math.floor(totalMinutes / 60)}h ${totalMinutes % 60}m`;
 }
 
 function mapSeverity(severity: string): string {

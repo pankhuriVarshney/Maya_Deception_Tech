@@ -12,8 +12,14 @@
 MAYA_AUDIT_LOG="/var/lib/.state/.audit.jsonl"
 
 _maya_log_command() {
-  local last_cmd
-  last_cmd="$(HISTTIMEFORMAT= history 1 2>/dev/null | sed -e 's/^[ ]*[0-9]*[ ]*//')"
+  local entry num last_cmd
+  entry="$(HISTTIMEFORMAT= history 1 2>/dev/null)"
+  # PROMPT_COMMAND also runs after an empty Enter, when `history 1` still
+  # returns the previous command -- only log when the history number moves.
+  num="$(printf '%s' "$entry" | sed -n 's/^[ ]*\([0-9][0-9]*\).*/\1/p')"
+  { [ -n "$num" ] && [ "$num" != "${_MAYA_LAST_HISTNUM:-}" ]; } || return 0
+  _MAYA_LAST_HISTNUM="$num"
+  last_cmd="$(printf '%s' "$entry" | sed -e 's/^[ ]*[0-9]*[ ]*//')"
   [ -n "$last_cmd" ] || return 0
   printf '{"kind":"action","attacker_ip":"%s","decoy":"%s","action":"%s","ts":"%s"}\n' \
     "${MAYA_ATTACKER_IP:-unknown}" "${DECOY_NAME:-unknown}" \
