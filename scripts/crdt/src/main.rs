@@ -7,6 +7,9 @@ use std::process::Command;
 use sha2::{Sha256, Digest};
 use std::fs::OpenOptions;
 use std::io::Write;
+use std::sync::atomic::{AtomicBool, Ordering};
+
+static WARNED_AUDIT_SURVIVED_REMOVE: AtomicBool = AtomicBool::new(false);
 
 // Overridable via MAYA_STATE_FILE so this same binary can run inside a K8s
 // pod (where /var/lib can't be safely replaced wholesale by an emptyDir
@@ -171,15 +174,32 @@ fn process_audit_log(state: &mut MayaState) {
         let Ok(event) = serde_json::from_str::<serde_json::Value>(line) else { continue };
         let attacker_ip = event.get("attacker_ip").and_then(|v| v.as_str()).unwrap_or("unknown");
         let decoy = event.get("decoy").and_then(|v| v.as_str()).unwrap_or("unknown");
+        // Every line is skipped if it's already in state, so replaying the
+        // file (see the delete note below) can never double-count: a
+        // session is keyed by its unique id, an action by
+        // attacker+decoy+command+wall-clock second. Without this, each
+        // replay minted a fresh Lamport tick, i.e. a "new" record.
         match event.get("kind").and_then(|v| v.as_str()) {
             Some("session") => {
                 let session_id = event.get("session_id").and_then(|v| v.as_str()).unwrap_or("unknown");
+                if state.active_sessions.elements.contains(&format!("{}|{}", decoy, session_id)) {
+                    continue;
+                }
                 state.observe_visit(attacker_ip, decoy);
                 state.add_session(decoy, session_id);
             }
             Some("action") => {
                 if let Some(action) = event.get("action").and_then(|v| v.as_str()) {
                     let wall_ts = event.get("ts").and_then(|v| v.as_str());
+                    if let Some(ts) = wall_ts {
+                        let already_recorded = state.attackers.get(attacker_ip).map_or(false, |a| {
+                            a.actions_per_decoy.elements.iter()
+                                .any(|r| r.decoy == decoy && r.action == action && r.wall_ts == ts)
+                        });
+                        if already_recorded {
+                            continue;
+                        }
+                    }
                     state.record_action(attacker_ip, decoy, action, wall_ts);
                 }
             }
@@ -187,8 +207,8 @@ fn process_audit_log(state: &mut MayaState) {
         }
     }
 
-    // Consumed, not a growing log -- each line is a real event, replaying
-    // the same line on the next cycle would double-count it. Deleting
+    // Best-effort consume so the file doesn't grow forever -- correctness
+    // doesn't depend on it, the per-line dedupe above does. Deleting
     // (not truncating in place) on purpose: the wrapper/bashrc hook that
     // creates this file runs as the decoy's own login user, not this
     // daemon's user, so this process may only have GROUP write access via
@@ -197,10 +217,23 @@ fn process_audit_log(state: &mut MayaState) {
     // own. The next append just recreates the file fresh. Logged, not
     // silently swallowed, so a permission regression like this shows up
     // immediately instead of quietly reprocessing the same lines forever.
-    if let Err(e) = std::fs::remove_file(&path) {
-        log_to_file(&format!("Failed to remove processed audit log {}: {} -- falling back to truncate", path, e));
-        if let Err(e2) = std::fs::write(&path, "") {
-            log_to_file(&format!("Truncate fallback for {} also failed: {} -- audit lines will be reprocessed next cycle", path, e2));
+    match std::fs::remove_file(&path) {
+        Ok(()) => {
+            // Observed on a gVisor pod: remove_file returned Ok yet the
+            // same lines were read again next cycle. The dedupe above is
+            // what keeps that harmless; this just records that it's
+            // happening (once, not every cycle).
+            if std::path::Path::new(&path).exists()
+                && !WARNED_AUDIT_SURVIVED_REMOVE.swap(true, Ordering::Relaxed)
+            {
+                log_to_file(&format!("Audit log {} still exists after remove_file -- relying on per-line dedupe", path));
+            }
+        }
+        Err(e) => {
+            log_to_file(&format!("Failed to remove processed audit log {}: {} -- falling back to truncate", path, e));
+            if let Err(e2) = std::fs::write(&path, "") {
+                log_to_file(&format!("Truncate fallback for {} also failed: {} -- relying on per-line dedupe", path, e2));
+            }
         }
     }
 }
