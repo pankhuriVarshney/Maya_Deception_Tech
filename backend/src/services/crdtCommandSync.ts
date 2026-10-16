@@ -43,6 +43,19 @@ function eventIdFor(ip: string, record: RawActionRecord): string {
   return `crdt-${ip}-${record.decoy}-${record.ts}-${record.node}`;
 }
 
+async function existingEventIds(ids: string[]): Promise<Set<string>> {
+  const found = new Set<string>();
+  const CHUNK = 1000;
+  for (let i = 0; i < ids.length; i += CHUNK) {
+    const docs = await AttackEvent.find(
+      { eventId: { $in: ids.slice(i, i + CHUNK) } },
+      { eventId: 1, _id: 0 }
+    ).lean();
+    for (const doc of docs) found.add(doc.eventId);
+  }
+  return found;
+}
+
 export async function syncAttackerCommandsFromState(
   rawState: RawMayaState,
   decoyName: string,
@@ -57,6 +70,19 @@ export async function syncAttackerCommandsFromState(
 
     const attackerId = attackerIdFor(ip);
 
+    // Dwell time = first to last recorded command, in minutes (the unit
+    // Attacker.dwellTime and the dashboard already use). Rounded up so a
+    // short but real engagement doesn't read as "0m".
+    let firstMs = Infinity;
+    let lastMs = -Infinity;
+    for (const r of records) {
+      const t = new Date(r.wall_ts).getTime();
+      if (Number.isNaN(t)) continue;
+      if (t < firstMs) firstMs = t;
+      if (t > lastMs) lastMs = t;
+    }
+    const hasTimes = Number.isFinite(firstMs) && Number.isFinite(lastMs);
+
     await Attacker.findOneAndUpdate(
       { attackerId },
       {
@@ -64,24 +90,30 @@ export async function syncAttackerCommandsFromState(
           attackerId,
           ipAddress: ip,
           entryPoint: decoyName,
-          firstSeen: new Date(),
+          firstSeen: hasTimes ? new Date(firstMs) : new Date(),
           platform,
         },
         $set: {
           lastSeen: new Date(),
+          ...(hasTimes ? { dwellTime: Math.ceil((lastMs - firstMs) / 60000) } : {}),
           ...(tier ? { tier } : {}),
         },
       },
       { upsert: true }
     );
 
-    for (const record of records) {
-      const eventId = eventIdFor(ip, record);
+    // The GSet never shrinks, so every poll re-sees the full history --
+    // checking which events already exist is what keeps re-polling
+    // idempotent. Done in batches rather than one query per record, so a
+    // large state costs a handful of queries per poll instead of tens of
+    // thousands holding up the discovery loop.
+    const eventIds = records.map(r => eventIdFor(ip, r));
+    const existing = await existingEventIds(eventIds);
 
-      // The GSet never shrinks, so every poll re-sees the full history --
-      // this check is what keeps re-polling idempotent.
-      const alreadyRecorded = await AttackEvent.exists({ eventId });
-      if (alreadyRecorded) continue;
+    for (let i = 0; i < records.length; i++) {
+      const record = records[i];
+      const eventId = eventIds[i];
+      if (existing.has(eventId)) continue;
 
       const classification = await mitre.classifyEvent(record.action);
       const risk = assessCommandRisk(record.action);

@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Activity, Gauge, Server, ShieldAlert, Shield, Swords, type LucideIcon } from "lucide-react"
+import { Activity, FlaskConical, Gauge, Server, ShieldAlert, Shield, Swords, type LucideIcon } from "lucide-react"
 
 import {
   Sidebar,
@@ -29,6 +29,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/dashboard/activity", label: "Live Activity", icon: Activity },
   { href: "/dashboard/infrastructure", label: "Infrastructure", icon: Server },
   { href: "/dashboard/simulations", label: "Simulations", icon: Swords },
+  { href: "/dashboard/benchmark", label: "Benchmark", icon: FlaskConical },
 ]
 
 export function AppSidebar() {

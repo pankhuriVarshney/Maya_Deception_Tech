@@ -44,8 +44,18 @@ services:
       # (Vagrant fabric unaffected) until that file exists.
       KUBECONFIG: ${KUBECONFIG:-/kube/kind-internal-config}
       K8S_TIER_CONTEXTS: ${K8S_TIER_CONTEXTS:-gvisor=kind-maya-dev}
+      # Benchmark targets (dashboard > Benchmark). Maya's jump-01 is reached
+      # through the kind node's NodePort; if that name doesn't resolve on your
+      # setup, set BENCHMARK_MAYA_HOST=host.docker.internal.
+      BENCHMARK_MAYA_HOST: ${BENCHMARK_MAYA_HOST:-maya-dev-control-plane}
+      BENCHMARK_MAYA_PORT: ${BENCHMARK_MAYA_PORT:-30022}
+      BENCHMARK_PASSWORD: ${BENCHMARK_PASSWORD:-fakejump01!}
     volumes:
       - ./.kube:/kube:ro
+      # Cowrie's JSON log, read-only, so the benchmark can see what Cowrie recorded.
+      - bench_cowrie_logs:/bench/cowrie:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       mongodb:
         condition: service_healthy
@@ -53,6 +63,29 @@ services:
     networks:
       - maya_network
       - kind
+
+  # --- Benchmark targets (see docs/EVALUATION.md and the dashboard's Benchmark page) ---
+  # Reached by service name on maya_network; no ports are published, so they
+  # never collide with the standalone cowrie-ssh on host port 2223.
+  bench-cowrie:
+    image: cowrie/cowrie:latest
+    environment:
+      - COWRIE_TELNET_ENABLED=no
+    volumes:
+      - bench_cowrie_logs:/cowrie/cowrie-git/var/log/cowrie
+    restart: unless-stopped
+    networks:
+      - maya_network
+
+  # Plain sshd with no honeypot: same base as the jump decoy, no monitoring.
+  bench-control:
+    build:
+      context: ./scripts/benchmark/control
+    environment:
+      BENCH_PASSWORD: ${BENCHMARK_PASSWORD:-fakejump01!}
+    restart: unless-stopped
+    networks:
+      - maya_network
 
   frontend:
     build:
@@ -69,6 +102,7 @@ services:
 
 volumes:
   maya_mongo_data:
+  bench_cowrie_logs:
 
 networks:
   maya_network:

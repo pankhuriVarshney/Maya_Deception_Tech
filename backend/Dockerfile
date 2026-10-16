@@ -11,6 +11,9 @@ RUN npm run build
 
 FROM node:20-alpine AS runner
 
+# ssh client + sshpass drive the benchmark attacker (src/services/benchmark/SshRunner.ts)
+RUN apk add --no-cache openssh-client sshpass
+
 WORKDIR /app
 ENV NODE_ENV=development
 

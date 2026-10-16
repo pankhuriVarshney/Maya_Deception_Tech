@@ -22,6 +22,7 @@ import dashboardRoutes from './routes/dashboard';
 import simulationRoutes from './routes/simulation';
 import decoyRoutes from './routes/decoy';
 import infrastructureRoutes from './routes/infrastructure';
+import benchmarkRoutes from './routes/benchmark';
 import { Attacker, VMStatus } from './models';
 
 dotenv.config();
@@ -83,6 +84,7 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/simulation', simulationRoutes);
 app.use('/api/decoy', decoyRoutes);
 app.use('/api/infrastructure', infrastructureRoutes);
+app.use('/api/benchmark', benchmarkRoutes);
 
 app.get('/health', (_req, res) => {
   res.json({
